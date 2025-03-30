@@ -1,0 +1,213 @@
+/* General Styles */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f4f7f6; /* Light gray background */
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1100px; /* Limit overall width */
+    margin: 0 auto; /* Center the content */
+    background-color: #fff; /* White background for content area */
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+}
+
+h1, h2 {
+    color: #2c3e50; /* Dark blue-gray */
+    border-bottom: 2px solid #e0e0e0; /* Subtle underline */
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+/* Form Styling */
+#add-product-form label {
+    display: block; /* Each label on a new line */
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #555;
+}
+
+#add-product-form input[type="text"],
+#add-product-form input[type="number"] {
+    width: calc(100% - 22px); /* Full width minus padding/border */
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box; /* Include padding/border in width */
+    font-size: 1rem;
+}
+
+#add-product-form input[type="number"] {
+     width: auto; /* Allow number inputs to be smaller if needed */
+     min-width: 100px;
+}
+
+#add-product-form button[type="submit"],
+#refresh-products {
+    background-color: #3498db; /* Blue */
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.2s ease;
+    margin-top: 10px;
+}
+
+#add-product-form button[type="submit"]:hover,
+#refresh-products:hover {
+    background-color: #2980b9; /* Darker blue */
+}
+
+/* Table Styling */
+#products-table {
+    width: 100%;
+    border-collapse: collapse; /* Remove gaps between cells */
+    margin-top: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#products-table thead {
+    background-color: #2c3e50; /* Dark blue-gray header */
+    color: white;
+}
+
+#products-table th,
+#products-table td {
+    padding: 12px 15px; /* Cell padding */
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0; /* Horizontal lines */
+}
+
+#products-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9; /* Zebra striping */
+}
+
+#products-table tbody tr:hover {
+    background-color: #f1f1f1; /* Highlight on hover */
+}
+
+#products-table th:last-child,
+#products-table td:last-child {
+    text-align: center; /* Center align action buttons */
+}
+
+/* Action Buttons in Table */
+#products-table button {
+    background-color: #7f8c8d; /* Gray */
+    color: white;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin: 0 3px; /* Spacing between buttons */
+    transition: background-color 0.2s ease;
+}
+
+#products-table button:hover {
+    opacity: 0.9;
+}
+
+/* Specific button colors (optional) */
+#products-table button[onclick*="editProduct"] {
+    background-color: #f39c12; /* Orange for Edit */
+}
+#products-table button[onclick*="deleteProduct"] {
+    background-color: #e74c3c; /* Red for Delete */
+}
+#products-table button[onclick*="showMovements"] {
+    background-color: #2ecc71; /* Green for Movements */
+}
+
+/* Message Areas */
+#add-product-message,
+#products-list-message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+/* Specific message styles will be applied via JS (e.g., color green/red) */
+#add-product-message:not(:empty), /* Only show if not empty */
+#products-list-message:not(:empty) {
+    border: 1px solid transparent; /* Base border */
+}
+
+/* Style based on color set by JS */
+#add-product-message[style*="color: green"],
+#products-list-message[style*="color: green"] {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724 !important; /* Override inline style if needed */
+}
+
+#add-product-message[style*="color: red"],
+#products-list-message[style*="color: red"] {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24 !important; /* Override inline style if needed */
+}
+
+#products-list-message[style*="color: black"] { /* Loading message */
+    background-color: #e2e3e5;
+    border-color: #d6d8db;
+    color: #383d41 !important;
+}
+
+
+/* Section Spacing */
+h2 {
+    margin-top: 40px; /* Add space above section titles */
+}
+
+/* Add some space between form and list */
+#add-product-form {
+    margin-bottom: 40px;
+}
+
+/* Estilo para estoque baixo */
+.low-stock {
+    color: #e74c3c; /* Vermelho */
+    font-weight: bold;
+}
+
+#products-table tbody tr.low-stock {
+    background-color: #fadfdd; /* Fundo levemente avermelhado para a linha inteira */
+}
+
+#products-table tbody tr.low-stock:hover {
+    background-color: #f7cac9; /* Cor mais forte no hover */
+}
+
+/* Ajuste nos botões de ação para melhor alinhamento e separação */
+#products-table .action-btn {
+    display: inline-block; /* Permite margin */
+    margin: 2px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    vertical-align: middle; /* Alinha melhor os botões na célula */
+}
+
+/* Cores específicas para os botões de ação */
+.edit-btn { background-color: #f39c12; } /* Laranja */
+.delete-btn { background-color: #e74c3c; } /* Vermelho */
+.movement-btn { background-color: #2ecc71; } /* Verde */
+.add-movement-btn { background-color: #3498db; } /* Azul */
+
+#products-table button:hover {
+    opacity: 0.85; /* Leve transparência no hover */
+}

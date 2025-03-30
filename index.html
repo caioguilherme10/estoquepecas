@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Estoque</title>
+    <!-- Link the CSS file -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Main container for content -->
+    <div class="container">
+
+        <h1>Meu Estoque</h1>
+
+        <!-- Seção para Adicionar Produtos -->
+        <section id="add-product-section">
+            <h2>Adicionar Novo Produto</h2>
+            <form id="add-product-form">
+                <!-- Grouping label/input can help with potential future grid/flex layouts -->
+                <div>
+                    <label for="codigoFabricante">Código Fabricante:</label>
+                    <input type="text" id="codigoFabricante" required>
+                </div>
+                <div>
+                    <label for="nomeProduto">Nome Produto:</label>
+                    <input type="text" id="nomeProduto" required>
+                </div>
+                <div>
+                    <label for="codigoBarras">Código Barras:</label>
+                    <input type="text" id="codigoBarras">
+                </div>
+                <div>
+                    <label for="aplicacao">Aplicação:</label>
+                    <input type="text" id="aplicacao">
+                </div>
+                <div>
+                    <label for="marca">Marca:</label>
+                    <input type="text" id="marca">
+                </div>
+                <div>
+                    <label for="quantidadeEstoque">Qtd. Estoque Inicial:</label>
+                    <input type="number" id="quantidadeEstoque" value="0" min="0"> <!-- Added min="0" -->
+                </div>
+                <div>
+                    <label for="precoCusto">Preço Custo:</label>
+                    <input type="number" step="0.01" id="precoCusto" value="0.00" min="0"> <!-- Added min="0" -->
+                </div>
+                <div>
+                    <label for="precoVenda">Preço Venda:</label>
+                    <input type="number" step="0.01" id="precoVenda" value="0.00" min="0"> <!-- Added min="0" -->
+                </div>
+                <div>
+                    <label for="estoqueMinimo">Estoque Mínimo:</label>
+                    <input type="number" id="estoqueMinimo" value="0" min="0"> <!-- Added min="0" -->
+                </div>
+                <div>
+                    <label for="localizacao">Localização:</label>
+                    <input type="text" id="localizacao">
+                </div>
+                <button type="submit">Adicionar Produto</button>
+            </form>
+            <!-- Message area for add product -->
+            <div id="add-product-message"></div>
+        </section>
+
+
+        <!-- Seção para Listar Produtos -->
+        <section id="list-products-section">
+            <h2>Produtos em Estoque</h2>
+            <button id="refresh-products">Atualizar Lista</button>
+            <!-- Message area for product list -->
+            <div id="products-list-message"></div>
+            <table id="products-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Aplicação</th>
+                        <th>Qtd.</th>
+                        <th>Preço Venda</th>
+                        <th>Localização</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Linhas serão adicionadas via JavaScript -->
+                </tbody>
+            </table>
+        </section>
+
+    </div> <!-- End of container -->
+
+    <!-- Inclua seu script do renderer -->
+    <script src="renderer.js"></script>
+</body>
+</html>
