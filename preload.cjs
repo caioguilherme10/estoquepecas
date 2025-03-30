@@ -148,7 +148,7 @@ try {
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             try {
                 let query = `
-                    SELECT ID, CodigoFabricante, NomeProduto, QuantidadeEstoque, PrecoVenda, Localizacao, EstoqueMinimo, Aplicacao
+                    SELECT ID, Marca, CodigoFabricante, NomeProduto, QuantidadeEstoque, PrecoVenda, Localizacao, EstoqueMinimo, Aplicacao
                     FROM Produtos
                 `;
                 const params = [];

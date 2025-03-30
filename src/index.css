@@ -1,0 +1,11 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Você pode adicionar seus estilos base globais aqui, se necessário */
+body {
+  /* Exemplo: Define uma fonte padrão se quiser */
+  /* font-family: 'Inter', sans-serif; */
+  /* Ou use as classes do Tailwind diretamente nos elementos */
+}
