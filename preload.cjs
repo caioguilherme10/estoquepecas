@@ -35,6 +35,7 @@ try {
             PrecoVenda REAL NOT NULL DEFAULT 0.00,
             EstoqueMinimo INTEGER NOT NULL DEFAULT 0,
             Localizacao TEXT,
+            Ativo BOOLEAN DEFAULT TRUE,
             DataCriacao DATETIME DEFAULT CURRENT_TIMESTAMP,
             DataAtualizacao DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -47,6 +48,8 @@ try {
             ID INTEGER PRIMARY KEY AUTOINCREMENT,
             ProdutoID INTEGER NOT NULL,
             DataHora DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PrecoVendaUnitario REAL DEFAULT NULL,
+            PrecoCustoUnitario REAL DEFAULT NULL,
             TipoMovimento TEXT NOT NULL CHECK(TipoMovimento IN ('Entrada', 'Saida', 'Ajuste', 'Inicial')), -- Tipos controlados
             Quantidade INTEGER NOT NULL, -- Positivo para Entrada/Ajuste+, Negativo para Saida/Ajuste-
             Observacao TEXT, -- Ex: 'Venda Pedido #123', 'Compra NF 567', 'Ajuste Inventário', 'Cadastro Inicial'
@@ -78,29 +81,38 @@ try {
 }
 
 // Função interna para registrar movimentação e atualizar estoque (usando Transação)
-function registrarMovimentacaoEAtualizarEstoque(produtoId, tipoMovimento, quantidade, observacao = null, usuario = null) {
+function registrarMovimentacaoEAtualizarEstoque(produtoId, tipoMovimento, quantidade, observacao = null, precoCustoUnitario = null, precoVendaUnitario = null, usuario = null) {
     if (!db) throw new Error("Banco de dados não conectado.");
 
-    // Validar quantidade baseada no tipo
-    if ((tipoMovimento === 'Saida' && quantidade >= 0) || (tipoMovimento === 'Entrada' && quantidade <= 0)) {
-         // Quantidade deve ser positiva para Entrada/Saida lógica, o sinal é controlado internamente
-         throw new Error(`Quantidade inválida (${quantidade}) para o tipo de movimento '${tipoMovimento}'. Use valores positivos.`);
-    }
+    // Validação básica da quantidade (deve ser sempre positiva aqui)
+    if (typeof quantidade !== 'number' || quantidade <= 0) {
+        throw new Error(`Quantidade inválida (${quantidade}). Deve ser um número positivo.`);
+   }
+   // Validação dos tipos de movimento aceitos
+   const tiposValidos = ['Entrada', 'Saida', 'Ajuste', 'Inicial']; // AjustePositivo/Negativo foram removidos, use 'Ajuste' com qtd positiva/negativa no cálculo
+   if (!tiposValidos.includes(tipoMovimento)) {
+       throw new Error(`Tipo de movimento inválido: ${tipoMovimento}. Válidos: ${tiposValidos.join(', ')}`);
+   }
 
-     // Quantidade a ser SOMADA ao estoque (negativa para saídas)
-    const quantidadeAjuste = (tipoMovimento === 'Saida') ? -Math.abs(quantidade) : Math.abs(quantidade);
-     // Quantidade a ser registrada na tabela de movimentação (sempre positiva no registro, tipo define a direção)
-    const quantidadeRegistro = Math.abs(quantidade);
+   // Determina o ajuste no estoque (positivo para entradas/inicial, negativo para saídas)
+   // Para 'Ajuste', o sinal da 'quantidade' passada para a *transação* determina a direção
+   // Mas a quantidade *registrada* é sempre positiva. O tipo 'Ajuste' indica a natureza.
+   // SIMPLIFICAÇÃO: Vamos assumir que 'Ajuste' aqui é sempre positivo para o estoque. Se precisar de ajuste negativo, use 'Saida' com observação clara. Ou crie um tipo 'AjusteNegativo'. Mantendo simples por agora:
+   const quantidadeAjuste = (tipoMovimento === 'Saida') ? -quantidade : quantidade;
+
+   // Prepara os preços unitários para inserção (NULL se não aplicável ao tipo)
+   const custoUnitarioParaRegistro = (tipoMovimento === 'Entrada' || tipoMovimento === 'Inicial') ? precoCustoUnitario : null;
+   const vendaUnitariaParaRegistro = (tipoMovimento === 'Saida') ? precoVendaUnitario : null;
 
 
     const transaction = db.transaction((data) => {
         // 1. Verifica estoque atual (se for saída)
         if (data.tipo === 'Saida') {
-            const stmtCheck = db.prepare('SELECT QuantidadeEstoque FROM Produtos WHERE ID = ?');
+            const stmtCheck = db.prepare('SELECT QuantidadeEstoque FROM Produtos WHERE ID = ? AND Ativo = TRUE');
             const produto = stmtCheck.get(data.id);
             if (!produto) throw new Error(`Produto com ID ${data.id} não encontrado.`);
-            if (produto.QuantidadeEstoque < data.qtdReg) {
-                throw new Error(`Estoque insuficiente para ${data.tipo}. Atual: ${produto.QuantidadeEstoque}, Necessário: ${data.qtdReg}`);
+            if (produto.QuantidadeEstoque < data.qtd) {
+                throw new Error(`Estoque insuficiente para '${produto.NomeProduto}'. Atual: ${produto.QuantidadeEstoque}, Saída: ${data.qtd}`);
             }
         }
 
@@ -111,12 +123,21 @@ function registrarMovimentacaoEAtualizarEstoque(produtoId, tipoMovimento, quanti
             throw new Error(`Falha ao atualizar estoque do produto ID ${data.id}. Produto existe?`);
         }
 
-        // 3. Insere o registro na tabela MovimentacoesEstoque
+        // 3. Insere o registro na tabela MovimentacoesEstoque com os preços unitários
         const stmtInsert = db.prepare(`
-            INSERT INTO MovimentacoesEstoque (ProdutoID, TipoMovimento, Quantidade, Observacao, Usuario)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO MovimentacoesEstoque
+                (ProdutoID, TipoMovimento, Quantidade, PrecoCustoUnitario, PrecoVendaUnitario, Observacao, Usuario, DataHora)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) -- Inserir DataHora explicitamente
         `);
-        const infoInsert = stmtInsert.run(data.id, data.tipo, data.qtdReg, data.obs, data.user);
+        const infoInsert = stmtInsert.run(
+            data.id,
+            data.tipo,
+            data.qtd, // Quantidade registrada é sempre positiva
+            data.custoUnit,
+            data.vendaUnit,
+            data.obs,
+            data.user
+        );
 
         return { movementId: infoInsert.lastInsertRowid, productId: data.id };
     });
@@ -125,16 +146,18 @@ function registrarMovimentacaoEAtualizarEstoque(produtoId, tipoMovimento, quanti
         const result = transaction({
             id: produtoId,
             tipo: tipoMovimento,
-            qtdAjuste: quantidadeAjuste,
-            qtdReg: quantidadeRegistro,
+            qtd: quantidade, // Quantidade da movimentação (positiva)
+            qtdAjuste: quantidadeAjuste, // Quantidade a somar/subtrair do estoque
             obs: observacao,
+            custoUnit: custoUnitarioParaRegistro,
+            vendaUnit: vendaUnitariaParaRegistro,
             user: usuario
         });
-        console.log(`[Preload TX] Movimentação (${tipoMovimento}, Qtd: ${quantidadeRegistro}) registrada e estoque atualizado para Produto ID ${produtoId}. Mov ID: ${result.movementId}`);
+        console.log(`[Preload TX] Movimentação (${tipoMovimento}, Qtd: ${quantidade}) registrada (CustoU: ${custoUnitarioParaRegistro}, VendaU: ${vendaUnitariaParaRegistro}) e estoque atualizado para Produto ID ${produtoId}. Mov ID: ${result.movementId}`);
         return result;
     } catch (err) {
-        console.error(`[Preload TX] Erro na transação de movimentação para Produto ID ${produtoId}:`, err);
-        throw err; // Re-lança o erro para ser tratado pela função chamadora
+        console.error(`[Preload TX] Erro na transação de movimentação para Produto ID ${produtoId}:`, err.message);
+        throw err; // Re-lança o erro para ser tratado pela API exposta
     }
 }
 
@@ -144,19 +167,32 @@ console.log('[Preload] Attempting to expose API via contextBridge...');
 try {
     contextBridge.exposeInMainWorld('api', {
         // --- Funções de Produto ---
-        getProducts: (searchTerm = null) => {
+        getProducts: (searchTerm = null, includeInactive = false) => {
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             try {
                 let query = `
-                    SELECT ID, Marca, CodigoFabricante, NomeProduto, QuantidadeEstoque, PrecoVenda, Localizacao, EstoqueMinimo, Aplicacao
+                    SELECT ID, Marca, CodigoFabricante, NomeProduto, QuantidadeEstoque, PrecoVenda, Localizacao, EstoqueMinimo, Aplicacao, Ativo
                     FROM Produtos
                 `;
                 const params = [];
+                const conditions = [];
+
+                // Adiciona filtro Ativo=TRUE por padrão
+                if (!includeInactive) {
+                    conditions.push("Ativo = TRUE");
+                }
+
                 if (searchTerm) {
                     query += ` WHERE NomeProduto LIKE ? OR CodigoFabricante LIKE ? OR Marca LIKE ? OR Aplicacao LIKE ? OR CodigoBarras LIKE ?`;
                     const likeTerm = `%${searchTerm}%`;
                     params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm); // Adiciona para cada campo de busca
                 }
+
+                // Junta as condições com WHERE e AND
+                if (conditions.length > 0) {
+                    query += ` WHERE ${conditions.join(' AND ')}`;
+                }
+
                 query += ' ORDER BY NomeProduto';
 
                 console.log(`[Preload API] getProducts executing query (Search: ${searchTerm || 'None'})...`);
@@ -203,8 +239,8 @@ try {
                     INSERT INTO Produtos (
                         CodigoFabricante, CodigoBarras, NomeProduto, Aplicacao, Marca,
                         DescricaoDetalhada, QuantidadeEstoque, PrecoCusto, PrecoVenda,
-                        EstoqueMinimo, Localizacao
-                    ) VALUES (@CodigoFabricante, @CodigoBarras, @NomeProduto, @Aplicacao, @Marca, @DescricaoDetalhada, @QuantidadeEstoque, @PrecoCusto, @PrecoVenda, @EstoqueMinimo, @Localizacao)
+                        EstoqueMinimo, Localizacao, Ativo
+                    ) VALUES (@CodigoFabricante, @CodigoBarras, @NomeProduto, @Aplicacao, @Marca, @DescricaoDetalhada, @QuantidadeEstoque, @PrecoCusto, @PrecoVenda, @EstoqueMinimo, @Localizacao, @Ativo)
                 `);
                  const params = {
                     CodigoFabricante: data.codigoFabricante,
@@ -217,19 +253,22 @@ try {
                     PrecoCusto: parseFloat(data.precoCusto || 0.0),
                     PrecoVenda: parseFloat(data.precoVenda || 0.0),
                     EstoqueMinimo: parseInt(data.estoqueMinimo || 0, 10),
-                    Localizacao: data.localizacao || null
+                    Localizacao: data.localizacao || null,
+                    Ativo: data.ativo === false ? false : true
                 };
                 const infoProd = stmtProd.run(params);
                 const newProductId = infoProd.lastInsertRowid;
 
-                 // 2. Registrar Movimento Inicial (se houver estoque inicial)
-                 if (initialQuantity > 0) {
-                     const stmtMov = db.prepare(`
-                        INSERT INTO MovimentacoesEstoque (ProdutoID, TipoMovimento, Quantidade, Observacao)
-                        VALUES (?, 'Inicial', ?, 'Cadastro Inicial do Produto')
-                     `);
-                     stmtMov.run(newProductId, initialQuantity);
-                 }
+                 // Chama a função interna de movimentação
+                 registrarMovimentacaoEAtualizarEstoque(
+                    newProductId,
+                    'Inicial', // ou 'Entrada'
+                    initialQuantity,
+                    'Cadastro Inicial do Produto',
+                    initialCost, // Passa o custo unitário inicial
+                    null // Preço de venda não se aplica aqui
+                    // usuário se tiver
+                );
                  return { id: newProductId };
             });
 
@@ -269,7 +308,8 @@ try {
                         PrecoCusto = @PrecoCusto,
                         PrecoVenda = @PrecoVenda,
                         EstoqueMinimo = @EstoqueMinimo,
-                        Localizacao = @Localizacao
+                        Localizacao = @Localizacao,
+                        Ativo = @Ativo
                         -- DataAtualizacao é atualizada pelo Trigger
                     WHERE ID = @ID
                 `);
@@ -285,7 +325,8 @@ try {
                     PrecoCusto: parseFloat(productData.precoCusto || 0.0),
                     PrecoVenda: parseFloat(productData.precoVenda || 0.0),
                     EstoqueMinimo: parseInt(productData.estoqueMinimo || 0, 10),
-                    Localizacao: productData.localizacao || null
+                    Localizacao: productData.localizacao || null,
+                    Ativo: ativoValue
                 };
                 console.log('[Preload API] updateProduct executing statement with params:', params);
                 const info = stmt.run(params);
@@ -332,35 +373,72 @@ try {
             }
         },
 
-        // --- Funções de Movimentação ---
+        // Modificado para aceitar dados de preço unitário
         addStockMovement: (movementData) => {
-             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            const { produtoId, tipoMovimento, quantidade, observacao, usuario } = movementData;
-            console.log(`[Preload API] addStockMovement called with data:`, movementData);
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+           // Desestrutura os dados esperados, incluindo os novos preços
+           const {
+               produtoId,
+               tipoMovimento,
+               quantidade,
+               observacao,
+               precoCustoUnitario, // Novo
+               precoVendaUnitario, // Novo
+               usuario // Novo
+           } = movementData;
 
-            if (!produtoId || !tipoMovimento || !quantidade) {
-                return Promise.reject(new Error("Dados da movimentação incompletos (ProdutoID, Tipo, Quantidade são obrigatórios)."));
+           console.log(`[Preload API] addStockMovement called with data:`, movementData);
+
+           if (!produtoId || !tipoMovimento || !quantidade) {
+               return Promise.reject(new Error("Dados da movimentação incompletos (ProdutoID, Tipo, Quantidade são obrigatórios)."));
+           }
+            // Validação da quantidade (deve ser positiva na chamada da API)
+            if (typeof quantidade !== 'number' || quantidade <= 0) {
+                return Promise.reject(new Error("Quantidade para movimentação deve ser um número positivo."));
+           }
+           // Validação básica dos preços (se fornecidos)
+            if (precoCustoUnitario !== undefined && precoCustoUnitario !== null && typeof precoCustoUnitario !== 'number') {
+                return Promise.reject(new Error("Preço de Custo Unitário inválido."));
             }
-            if (quantidade <= 0) {
-                 return Promise.reject(new Error("Quantidade para movimentação deve ser um número positivo."));
+            if (precoVendaUnitario !== undefined && precoVendaUnitario !== null && typeof precoVendaUnitario !== 'number') {
+                return Promise.reject(new Error("Preço de Venda Unitário inválido."));
             }
 
-            try {
-                 // Chama a função interna que executa a transação
-                const result = registrarMovimentacaoEAtualizarEstoque(produtoId, tipoMovimento, quantidade, observacao, usuario);
-                return Promise.resolve({ ...result, message: `Movimentação (${tipoMovimento}) registrada com sucesso!` });
-            } catch (err) {
-                // O erro já foi logado na função interna, apenas repassa.
-                return Promise.reject(err); // Repassa o erro da transação
-            }
-        },
 
+           try {
+                // Chama a função interna que executa a transação, passando os preços
+               const result = registrarMovimentacaoEAtualizarEstoque(
+                   produtoId,
+                   tipoMovimento,
+                   quantidade,
+                   observacao,
+                   precoCustoUnitario,
+                   precoVendaUnitario,
+                   usuario
+               );
+               return Promise.resolve({ ...result, message: `Movimentação (${tipoMovimento}) registrada com sucesso!` });
+           } catch (err) {
+               // O erro já foi logado na função interna, apenas repassa.
+               return Promise.reject(err); // Repassa o erro da transação
+           }
+       },
+
+        // getStockMovements pode incluir os novos campos de preço se necessário na UI
         getStockMovements: (productId) => {
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             try {
                 console.log(`[Preload API] getStockMovements executing query for Product ID: ${productId}...`);
+                // Inclui as novas colunas no SELECT
                 const stmt = db.prepare(`
-                    SELECT ID, strftime('%d/%m/%Y %H:%M:%S', DataHora) as DataHoraFormatada, TipoMovimento, Quantidade, Observacao, Usuario
+                    SELECT
+                        ID,
+                        strftime('%d/%m/%Y %H:%M:%S', DataHora) as DataHoraFormatada,
+                        TipoMovimento,
+                        Quantidade,
+                        PrecoCustoUnitario,
+                        PrecoVendaUnitario,
+                        Observacao,
+                        Usuario
                     FROM MovimentacoesEstoque
                     WHERE ProdutoID = ?
                     ORDER BY DataHora DESC

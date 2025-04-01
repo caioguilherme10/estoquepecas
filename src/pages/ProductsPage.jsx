@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, PlusCircle, Package } from 'lucide-react'; // Ícones
 import CreateProductModal from './CreateProductModal'; // Importaremos depois
+import AddMovementModal from './AddMovementModal';
 // import Rating from '../components/common/Rating'; // Se for usar rating
 
 // Componente para o Card de Produto individual
@@ -70,6 +71,7 @@ const ProductCard = ({ product }) => {
           {/* Adicione onClick handlers quando implementar as funções */}
           <button className="text-xs px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition duration-150">Editar</button>
           <button className="text-xs px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition duration-150">Excluir</button>
+          <button onClick={() => openMovementModal(product)} className="...">Movimentar</button>
       </div>
     </div>
   );
