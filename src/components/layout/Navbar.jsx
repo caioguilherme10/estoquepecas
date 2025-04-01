@@ -26,7 +26,7 @@ const Navbar = ({
           <Menu className="w-4 h-4" />
         </button>
 
-        <div className="relative">
+        {/*<div className="relative">
           <input
             type="search"
             placeholder="Buscar produtos..." // Placeholder mais genérico
@@ -34,9 +34,9 @@ const Navbar = ({
           />
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             {/* Ícone de busca seria mais apropriado aqui, mas mantendo Bell por enquanto */}
-            <Bell className="text-gray-500 dark:text-gray-400" size={20} />
+            {/*<Bell className="text-gray-500 dark:text-gray-400" size={20} />
           </div>
-        </div>
+        </div>*/}
       </div>
 
       {/* RIGHT SIDE */}
@@ -52,13 +52,13 @@ const Navbar = ({
 
         {/* Seção de Notificações e Usuário (simplificada/ajustada) */}
         <div className="hidden md:flex justify-between items-center gap-4">
-          <div className="relative p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+          {/*<div className="relative p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
             <Bell className="cursor-pointer text-gray-500 dark:text-gray-400" size={22} />
             {/* Badge de notificação */}
-            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-[0.6rem] font-bold leading-none text-red-100 bg-red-500 rounded-full">
+            {/*<span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-[0.6rem] font-bold leading-none text-red-100 bg-red-500 rounded-full">
               3
             </span>
-          </div>
+          </div>*/}
           {/* Separador */}
           <div className="h-6 border-l border-gray-300 dark:border-gray-600"></div>
 

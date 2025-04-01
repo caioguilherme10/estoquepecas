@@ -98,7 +98,8 @@ const Sidebar = ({ isCollapsed }) => { // Recebe apenas isCollapsed como prop ag
       <nav className="flex-grow mt-4 overflow-y-auto"> {/* Adicionado overflow */}
         {/* Mapeia os links aqui */}
         <SidebarLink href="/dashboard" icon={Layout} label="Dashboard" isCollapsed={isCollapsed} />
-        <SidebarLink href="/inventory" icon={Archive} label="Inventário" isCollapsed={isCollapsed} />
+        <SidebarLink href="/compra" icon={Archive} label="Compra de Produtos" isCollapsed={isCollapsed} />
+        <SidebarLink href="/venda" icon={Archive} label="Venda de Produtos" isCollapsed={isCollapsed} />
         <SidebarLink href="/products" icon={Clipboard} label="Produtos" isCollapsed={isCollapsed} />
         {/* Adicione outras rotas conforme necessário */}
         {/* <SidebarLink href="/users" icon={User} label="Usuários" isCollapsed={isCollapsed} /> */}

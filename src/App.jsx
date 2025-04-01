@@ -8,7 +8,8 @@ import ProductsPage from './pages/ProductsPage';
 
 // Crie componentes placeholder para as páginas por enquanto
 const DashboardPage = () => <h1 className="text-xl font-bold dark:text-white">Dashboard</h1>;
-const InventoryPage = () => <h1 className="text-xl font-bold dark:text-white">Inventário</h1>;
+const CompraPage = () => <h1 className="text-xl font-bold dark:text-white">Compra</h1>;
+const VendaPage = () => <h1 className="text-xl font-bold dark:text-white">Venda</h1>;
 //const ProductsPage = () => <h1 className="text-xl font-bold dark:text-white">Produtos</h1>;
 const SettingsPage = () => <h1 className="text-xl font-bold dark:text-white">Configurações</h1>;
 const NotFoundPage = () => <h1 className="text-xl font-bold dark:text-white">404 - Página Não Encontrada</h1>;
@@ -22,7 +23,8 @@ function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} /> {/* Rota inicial */}
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/compra" element={<CompraPage />} />
+          <Route path="/venda" element={<VendaPage />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {/* Adicione outras rotas conforme necessário */}
