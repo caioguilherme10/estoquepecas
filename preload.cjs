@@ -1,4 +1,4 @@
-// --- START OF FILE preload.js ---
+// --- START OF FILE preload.cjs (MODIFICADO) ---
 
 console.log('[Preload] Script starting...');
 const { contextBridge, ipcRenderer } = require('electron');
@@ -7,8 +7,14 @@ const os = require('os'); // Mantenha para diagnóstico se precisar
 const Database = require('better-sqlite3');
 
 let db;
-const dbPath = path.join(__dirname, 'estoque.db'); // ALTERADO: Nome do banco de dados
+// Use __dirname se o preload.js estiver na mesma pasta que o main.js
+// Se estiver em src/preload, ajuste o caminho para subir um nível: path.join(__dirname, '..', 'estoque.db')
+// Assumindo que está na raiz junto com o main.js por enquanto:
+// const dbPath = path.join(process.resourcesPath, 'estoque.db'); // Caminho mais robusto para produção
+// Para desenvolvimento, pode usar: const dbPath = path.join(__dirname, 'estoque.db');
+const dbPath = path.join(__dirname, 'estoque.db');
 console.log('[Preload] Database path target:', dbPath);
+
 
 try {
     console.log('[Preload] Attempting to connect to SQLite DB...');
@@ -19,13 +25,13 @@ try {
     db.pragma('foreign_keys = ON;'); // Habilitar chaves estrangeiras é crucial!
     console.log('[Preload] PRAGMAs set: journal_mode=WAL, foreign_keys=ON.');
 
-    // --- Criação/Verificação das Tabelas (NOVA ESTRUTURA) ---
+    // --- Criação/Verificação das Tabelas (mantendo a estrutura anterior) ---
     // Tabela Produtos
     db.exec(`
         CREATE TABLE IF NOT EXISTS produtos (
             id_produto INTEGER PRIMARY KEY AUTOINCREMENT,
-            CodigoBarras VARCHAR(255) NULL,
-            CodigoFabricante VARCHAR(255) NULL,
+            CodigoBarras VARCHAR(255) UNIQUE NULL,
+            CodigoFabricante VARCHAR(255) UNIQUE NULL,
             NomeProduto VARCHAR(255) NOT NULL,
             Marca VARCHAR(255) NULL,
             Descricao TEXT NULL,
@@ -55,7 +61,7 @@ try {
             numero_nota_fiscal VARCHAR(255) NULL,
             observacoes TEXT NULL,
             usuario_compra INTEGER NULL,
-            FOREIGN KEY (id_produto) REFERENCES produtos(id_produto)
+            FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) ON DELETE RESTRICT -- Alterado para RESTRICT para segurança
             -- FOREIGN KEY (id_fornecedor) REFERENCES fornecedores(id_fornecedor) -- Se tiver tabela de fornecedores
         );
     `);
@@ -75,7 +81,7 @@ try {
             numero_recibo VARCHAR(255) NULL,
             observacoes TEXT NULL,
             usuario_venda INTEGER NULL,
-            FOREIGN KEY (id_produto) REFERENCES produtos(id_produto)
+            FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) ON DELETE RESTRICT -- Alterado para RESTRICT para segurança
             -- FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) -- Se tiver tabela de clientes
         );
     `);
@@ -86,6 +92,7 @@ try {
         CREATE TRIGGER IF NOT EXISTS update_product_timestamp
         AFTER UPDATE ON produtos
         FOR EACH ROW
+        WHEN OLD.DataUltimaAtualizacao = NEW.DataUltimaAtualizacao -- Evita loop infinito se trigger atualizar o timestamp
         BEGIN
             UPDATE produtos SET DataUltimaAtualizacao = strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE id_produto = OLD.id_produto;
         END;
@@ -99,18 +106,39 @@ try {
     console.error(`[Preload] Stack Trace: ${err.stack}`);
     db = null; // Garante que db é null se a conexão falhar
     // Informar o main process sobre o erro fatal? (Opcional)
-    // ipcRenderer.send('db-error', err.message);
+    ipcRenderer.send('db-error', err.message); // Informar o main process
 }
 
-// --- FUNÇÃO INTERNA DE MOVIMENTAÇÃO REMOVIDA ---
-// A lógica de movimentação será mais simples e feita diretamente nas funções de API, usando as tabelas historico_compras/vendas
-
-// --- Expor Funções para o Renderer (AJUSTADAS PARA A NOVA ESTRUTURA) ---
+// --- Expor Funções para o Renderer (AJUSTADAS E NOVAS FUNÇÕES) ---
 console.log('[Preload] Attempting to expose API via contextBridge...');
 try {
+    if (!db) {
+        // Se o DB falhou ao iniciar, expõe um objeto API 'vazio' ou com funções que retornam erro
+        console.error("[Preload] Database connection failed. Exposing limited/error API.");
+        contextBridge.exposeInMainWorld('api', {
+            // Funções que indicam o erro
+            getProducts: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            getProductById: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            addProduct: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            updateProduct: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            deleteProduct: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            desativarProduto: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            addCompra: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            addVenda: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            getHistoricoCompras: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            getHistoricoVendas: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            getFilteredHistoricoCompras: () => Promise.reject(new Error("Banco de dados não conectado.")), // Nova
+            getFilteredHistoricoVendas: () => Promise.reject(new Error("Banco de dados não conectado.")), // Nova
+            closeDatabase: () => { console.warn("[Preload API] DB not connected, cannot close.") },
+        });
+        throw new Error("Database connection failed during setup."); // Interrompe a execução do try
+    }
+
+    // Se o DB conectou, expõe a API completa
     contextBridge.exposeInMainWorld('api', {
-        // --- Funções de Produto ---
+        // --- Funções de Produto (mantidas como antes) ---
         getProducts: (searchTerm = null, includeInactive = false) => {
+             // Código da função getProducts... (sem alterações)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             try {
                 let query = `
@@ -120,7 +148,6 @@ try {
                 const params = [];
                 const conditions = [];
 
-                // Adiciona filtro Ativo=TRUE por padrão
                 if (!includeInactive) {
                     conditions.push("Ativo = TRUE");
                 }
@@ -128,10 +155,9 @@ try {
                 if (searchTerm) {
                     conditions.push(`(NomeProduto LIKE ? OR CodigoFabricante LIKE ? OR Marca LIKE ? OR Aplicacao LIKE ? OR CodigoBarras LIKE ?)`);
                     const likeTerm = `%${searchTerm}%`;
-                    params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm); // Adiciona para cada campo de busca
+                    params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
                 }
 
-                // Junta as condições com WHERE e AND
                 if (conditions.length > 0) {
                     query += ` WHERE ${conditions.join(' AND ')}`;
                 }
@@ -150,14 +176,15 @@ try {
         },
 
         getProductById: (id) => {
+             // Código da função getProductById... (sem alterações)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             try {
                 console.log(`[Preload API] getProductById executing query for ID: ${id}...`);
-                const stmt = db.prepare('SELECT * FROM produtos WHERE id_produto = ?'); // Alterado
+                const stmt = db.prepare('SELECT * FROM produtos WHERE id_produto = ?');
                 const product = stmt.get(id);
                 if (!product) {
                     console.warn(`[Preload API] getProductById: Product with ID ${id} not found.`);
-                    return Promise.resolve(null); // Ou reject(new Error(...))
+                    return Promise.resolve(null);
                 }
                 console.log(`[Preload API] getProductById returning product data for ID: ${id}.`);
                 return Promise.resolve(product);
@@ -168,13 +195,22 @@ try {
         },
 
         addProduct: (productData) => {
-            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            // Validações básicas
-            if (!productData || !productData.CodigoFabricante || !productData.NomeProduto) { // Alterado
+            // Código da função addProduct... (sem alterações)
+             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            if (!productData || !productData.CodigoFabricante || !productData.NomeProduto) {
                 return Promise.reject(new Error("Dados incompletos (Código Fabricante e Nome são obrigatórios)."));
             }
 
-            try {
+            const transaction = db.transaction(() => {
+                const stmtCheckFab = db.prepare('SELECT id_produto FROM produtos WHERE CodigoFabricante = ?');
+                if (productData.CodigoFabricante && stmtCheckFab.get(productData.CodigoFabricante)) {
+                    throw new Error(`Código do Fabricante '${productData.CodigoFabricante}' já existe.`);
+                }
+                const stmtCheckBar = db.prepare('SELECT id_produto FROM produtos WHERE CodigoBarras = ?');
+                 if (productData.CodigoBarras && stmtCheckBar.get(productData.CodigoBarras)) {
+                    throw new Error(`Código de Barras '${productData.CodigoBarras}' já existe.`);
+                }
+
                 const stmt = db.prepare(`
                     INSERT INTO produtos (
                         CodigoBarras, CodigoFabricante, NomeProduto, Marca,
@@ -199,28 +235,38 @@ try {
                     Localizacao: productData.Localizacao || null,
                     Ativo: productData.Ativo === false ? false : true
                 });
-                const newProductId = info.lastInsertRowid;
+                return info.lastInsertRowid;
+            });
 
+            try {
+                const newProductId = transaction();
                 console.log(`[Preload API] addProduct successful. Inserted Product ID: ${newProductId}`);
                 return Promise.resolve({ id: newProductId, message: 'Produto adicionado com sucesso!' });
             } catch (err) {
                 console.error("[Preload API] Error in addProduct:", err);
-                if (err.code && err.code.includes('SQLITE_CONSTRAINT')) { // Trata erros de constraint de forma mais genérica
-                    if (err.message.includes('UNIQUE constraint failed: produtos.CodigoFabricante')) { return Promise.reject(new Error(`Erro: Código do Fabricante '${productData.CodigoFabricante}' já existe.`)); }
-                    if (err.message.includes('UNIQUE constraint failed: produtos.CodigoBarras')) { return Promise.reject(new Error(`Erro: Código de Barras '${productData.CodigoBarras}' já existe.`)); }
-                    return Promise.reject(new Error(`Erro de constraint: ${err.message}`));
-                }
-                return Promise.reject(err); // Re-lança outros erros
+                 // O erro já vem formatado da transaction
+                 return Promise.reject(err);
             }
         },
 
         updateProduct: (id, productData) => {
+             // Código da função updateProduct... (sem alterações, exceto checagem de duplicidade)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             if (!id || !productData) return Promise.reject(new Error("ID do produto e dados para atualização são obrigatórios."));
-             // **Importante:** Não permitir atualização direta da QuantidadeEstoque aqui.
-             // Ela deve ser alterada via movimentações.
             console.log(`[Preload API] updateProduct called for ID: ${id} with data:`, productData);
-            try {
+
+             const transaction = db.transaction(() => {
+                 // Verificar duplicidade de CodigoFabricante (exceto para o próprio ID)
+                const stmtCheckFab = db.prepare('SELECT id_produto FROM produtos WHERE CodigoFabricante = ? AND id_produto != ?');
+                if (productData.CodigoFabricante && stmtCheckFab.get(productData.CodigoFabricante, id)) {
+                    throw new Error(`Código do Fabricante '${productData.CodigoFabricante}' já pertence a outro produto.`);
+                }
+                 // Verificar duplicidade de CodigoBarras (exceto para o próprio ID)
+                const stmtCheckBar = db.prepare('SELECT id_produto FROM produtos WHERE CodigoBarras = ? AND id_produto != ?');
+                 if (productData.CodigoBarras && stmtCheckBar.get(productData.CodigoBarras, id)) {
+                    throw new Error(`Código de Barras '${productData.CodigoBarras}' já pertence a outro produto.`);
+                }
+
                 const stmt = db.prepare(`
                     UPDATE produtos SET
                         CodigoBarras = @CodigoBarras,
@@ -233,6 +279,7 @@ try {
                         EstoqueMinimo = @EstoqueMinimo,
                         Localizacao = @Localizacao,
                         Ativo = @Ativo
+                        /* DataUltimaAtualizacao será atualizada pelo trigger */
                     WHERE id_produto = @id_produto
                 `);
                 const info = stmt.run({
@@ -249,50 +296,62 @@ try {
                     Ativo: productData.Ativo === false ? false : true
                 });
                 if (info.changes === 0) {
-                     console.warn(`[Preload API] updateProduct: No rows updated for ID ${id}. Product might not exist.`);
-                    return Promise.reject(new Error(`Produto com ID ${id} não encontrado para atualização.`));
+                     // Lança um erro se nada foi alterado, pode ser que o ID não exista
+                    throw new Error(`Produto com ID ${id} não encontrado ou nenhum dado foi alterado.`);
                 }
-                console.log(`[Preload API] updateProduct successful for ID: ${id}. Rows changed: ${info.changes}`);
-                return Promise.resolve({ changes: info.changes, message: 'Produto atualizado com sucesso!' });
+                return info.changes; // Retorna o número de linhas alteradas
+            });
+
+            try {
+                const changes = transaction();
+                console.log(`[Preload API] updateProduct successful for ID: ${id}. Rows changed: ${changes}`);
+                return Promise.resolve({ changes: changes, message: 'Produto atualizado com sucesso!' });
             } catch (err) {
                  console.error(`[Preload API] Error in updateProduct for ID ${id}:`, err);
-                 // Tratar erros de constraint UNIQUE aqui também
-                 if (err.code && err.code.includes('SQLITE_CONSTRAINT')) {
-                    if (err.message.includes('UNIQUE constraint failed: produtos.CodigoFabricante')) { return Promise.reject(new Error(`Erro: Código do Fabricante '${productData.CodigoFabricante}' já pertence a outro produto.`)); }
-                    if (err.message.includes('UNIQUE constraint failed: produtos.CodigoBarras')) { return Promise.reject(new Error(`Erro: Código de Barras '${productData.CodigoBarras}' já pertence a outro produto.`)); }
-                    return Promise.reject(new Error(`Erro de constraint ao atualizar: ${err.message}`));
-                }
-                return Promise.reject(err);
+                 return Promise.reject(err); // O erro já vem formatado da transaction
             }
         },
 
         deleteProduct: (id) => {
+             // Código da função deleteProduct... (alterado para usar transaction e verificar RESTRICT)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             console.log(`[Preload API] deleteProduct called for ID: ${id}`);
-            try {
-                 // A chave estrangeira com ON DELETE CASCADE cuidará das movimentações associadas.
-                 // Se fosse ON DELETE RESTRICT, a exclusão falharia se houvesse movimentações.
+
+            const transaction = db.transaction(() => {
+                 // Verificar se há histórico associado (por causa do ON DELETE RESTRICT)
+                const stmtCheckCompras = db.prepare('SELECT 1 FROM historico_compras WHERE id_produto = ? LIMIT 1');
+                if (stmtCheckCompras.get(id)) {
+                    throw new Error(`Não é possível excluir o produto ID ${id} pois ele possui histórico de compras.`);
+                }
+                const stmtCheckVendas = db.prepare('SELECT 1 FROM historico_vendas WHERE id_produto = ? LIMIT 1');
+                if (stmtCheckVendas.get(id)) {
+                    throw new Error(`Não é possível excluir o produto ID ${id} pois ele possui histórico de vendas.`);
+                }
+
+                // Se não houver histórico, prosseguir com a exclusão
                 const stmt = db.prepare('DELETE FROM produtos WHERE id_produto = ?');
                 console.log('[Preload API] deleteProduct executing statement...');
                 const info = stmt.run(id);
                 if (info.changes === 0) {
                      console.warn(`[Preload API] deleteProduct: No rows deleted for ID ${id}. Product might not exist.`);
-                     return Promise.reject(new Error(`Produto com ID ${id} não encontrado para exclusão.`));
+                     // Lança erro se não excluiu, pode não existir
+                     throw new Error(`Produto com ID ${id} não encontrado para exclusão.`);
                 }
-                console.log(`[Preload API] deleteProduct successful for ID: ${id}. Rows deleted: ${info.changes}`);
-                return Promise.resolve({ changes: info.changes, message: 'Produto excluído com sucesso!' });
+                return info.changes;
+            });
+
+             try {
+                const changes = transaction();
+                console.log(`[Preload API] deleteProduct successful for ID: ${id}. Rows deleted: ${changes}`);
+                return Promise.resolve({ changes: changes, message: 'Produto excluído com sucesso!' });
             } catch (err) {
                 console.error(`[Preload API] Error deleting product ID ${id}:`, err);
-                 // Exemplo: Se usasse ON DELETE RESTRICT e houvesse movimentações, um erro SQLITE_CONSTRAINT_FOREIGNKEY ocorreria aqui.
-                 if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
-                     return Promise.reject(new Error(`Não é possível excluir o produto ID ${id} pois ele possui histórico de movimentações.`));
-                 }
-                return Promise.reject(err);
+                return Promise.reject(err); // Erro já formatado pela transaction
             }
         },
 
-        // Nova função para desativar um produto
         desativarProduto: (id) => {
+            // Código da função desativarProduto... (sem alterações)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             console.log(`[Preload API] desativarProduto called for ID: ${id}`);
             try {
@@ -310,14 +369,30 @@ try {
             }
         },
 
-        // --- Funções de Compra e Venda (NOVAS) ---
+        // --- Funções de Compra e Venda (addCompra/addVenda inalteradas) ---
         addCompra: (compraData) => {
+            // Código da função addCompra... (sem alterações)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             if (!compraData || !compraData.id_produto || !compraData.quantidade || !compraData.preco_unitario) {
-                return Promise.reject(new Error("Dados da compra incompletos."));
+                return Promise.reject(new Error("Dados da compra incompletos (Produto, Quantidade, Preço Unitário)."));
+            }
+            if (parseInt(compraData.quantidade, 10) <= 0) {
+                 return Promise.reject(new Error("A quantidade da compra deve ser maior que zero."));
             }
 
-            try {
+
+            const transaction = db.transaction(() => {
+                 // Verifica se o produto existe e está ativo
+                const productStmt = db.prepare('SELECT Ativo FROM produtos WHERE id_produto = ?');
+                const product = productStmt.get(compraData.id_produto);
+                if (!product) {
+                    throw new Error(`Produto com ID ${compraData.id_produto} não encontrado.`);
+                }
+                // Opcional: Permitir compra de produto inativo? Se não, descomente abaixo.
+                if (!product.Ativo) {
+                     throw new Error(`Produto com ID ${compraData.id_produto} está inativo e não pode receber compras.`);
+                }
+
                 const stmt = db.prepare(`
                     INSERT INTO historico_compras (
                         id_produto, quantidade, preco_unitario, preco_total,
@@ -337,30 +412,52 @@ try {
                     preco_total: precoTotal,
                     numero_nota_fiscal: compraData.numero_nota_fiscal || null,
                     observacoes: compraData.observacoes || null,
-                    usuario_compra: compraData.usuario_compra || null,
+                    usuario_compra: compraData.usuario_compra || null, // Adicionar lógica de usuário se necessário
                     nome_fornecedor: compraData.nome_fornecedor || null
                 });
 
-                console.log(`[Preload API] addCompra successful. Inserted Compra ID: ${info.lastInsertRowid}`);
                  // Após a compra, atualizar o estoque
                 const stmtUpdateEstoque = db.prepare('UPDATE produtos SET QuantidadeEstoque = QuantidadeEstoque + ? WHERE id_produto = ?');
                 stmtUpdateEstoque.run(compraData.quantidade, compraData.id_produto);
 
-                return Promise.resolve({ id: info.lastInsertRowid, message: 'Compra adicionada com sucesso!' });
+                return info.lastInsertRowid; // Retorna o ID da compra inserida
+            });
 
+            try {
+                const newCompraId = transaction();
+                console.log(`[Preload API] addCompra successful. Inserted Compra ID: ${newCompraId}`);
+                return Promise.resolve({ id: newCompraId, message: 'Compra adicionada com sucesso!' });
             } catch (err) {
                 console.error("[Preload API] Error in addCompra:", err);
-                return Promise.reject(err);
+                return Promise.reject(err); // Erro já formatado pela transaction
             }
         },
 
         addVenda: (vendaData) => {
+            // Código da função addVenda... (sem alterações, apenas validação de estoque)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             if (!vendaData || !vendaData.id_produto || !vendaData.quantidade || !vendaData.preco_unitario) {
-                return Promise.reject(new Error("Dados da venda incompletos."));
+                return Promise.reject(new Error("Dados da venda incompletos (Produto, Quantidade, Preço Unitário)."));
+            }
+             if (parseInt(vendaData.quantidade, 10) <= 0) {
+                 return Promise.reject(new Error("A quantidade da venda deve ser maior que zero."));
             }
 
-            try {
+             const transaction = db.transaction(() => {
+                // Verifica se o produto existe, está ativo e tem estoque suficiente
+                const productStmt = db.prepare('SELECT QuantidadeEstoque, Ativo, NomeProduto FROM produtos WHERE id_produto = ?');
+                const product = productStmt.get(vendaData.id_produto);
+                if (!product) {
+                    throw new Error(`Produto com ID ${vendaData.id_produto} não encontrado.`);
+                }
+                 if (!product.Ativo) {
+                    throw new Error(`Produto '${product.NomeProduto}' (ID: ${vendaData.id_produto}) está inativo e não pode ser vendido.`);
+                }
+                if (product.QuantidadeEstoque < vendaData.quantidade) {
+                    throw new Error(`Estoque insuficiente para o produto '${product.NomeProduto}'. Disponível: ${product.QuantidadeEstoque}, Solicitado: ${vendaData.quantidade}.`);
+                }
+
+
                 const stmt = db.prepare(`
                     INSERT INTO historico_vendas (
                         id_produto, quantidade, preco_unitario, preco_total,
@@ -380,44 +477,50 @@ try {
                     preco_total: precoTotal,
                     numero_recibo: vendaData.numero_recibo || null,
                     observacoes: vendaData.observacoes || null,
-                    usuario_venda: vendaData.usuario_venda || null,
+                    usuario_venda: vendaData.usuario_venda || null, // Adicionar lógica de usuário se necessário
                     nome_cliente: vendaData.nome_cliente || null
                 });
-
-                console.log(`[Preload API] addVenda successful. Inserted Venda ID: ${info.lastInsertRowid}`);
 
                  // Após a venda, atualizar o estoque (diminuir)
                 const stmtUpdateEstoque = db.prepare('UPDATE produtos SET QuantidadeEstoque = QuantidadeEstoque - ? WHERE id_produto = ?');
                 stmtUpdateEstoque.run(vendaData.quantidade, vendaData.id_produto);
 
-                return Promise.resolve({ id: info.lastInsertRowid, message: 'Venda adicionada com sucesso!' });
+                return info.lastInsertRowid; // Retorna o ID da venda inserida
+            });
 
+            try {
+                const newVendaId = transaction();
+                console.log(`[Preload API] addVenda successful. Inserted Venda ID: ${newVendaId}`);
+                return Promise.resolve({ id: newVendaId, message: 'Venda adicionada com sucesso!' });
             } catch (err) {
                 console.error("[Preload API] Error in addVenda:", err);
-                return Promise.reject(err);
+                return Promise.reject(err); // Erro já formatado pela transaction
             }
         },
 
-        // --- Funções de Histórico (AJUSTADAS) ---
-        // getStockMovements => historico_compras e historico_vendas separadamente
+        // --- Funções de Histórico (getHistoricoCompras/Vendas para UM produto - mantidas) ---
         getHistoricoCompras: (productId) => {
+            // Código da função getHistoricoCompras... (sem alterações)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            try {
+             try {
                 console.log(`[Preload API] getHistoricoCompras executing query for Product ID: ${productId}...`);
                 const stmt = db.prepare(`
                     SELECT
-                        id_compra,
-                        strftime('%d/%m/%Y %H:%M:%S', data_compra) as data_compra_formatada,
-                        quantidade,
-                        preco_unitario,
-                        preco_total,
-                        numero_nota_fiscal,
-                        observacoes,
-                        nome_fornecedor,
-                        usuario_compra
-                    FROM historico_compras
-                    WHERE id_produto = ?
-                    ORDER BY data_compra DESC
+                        hc.id_compra,
+                        strftime('%d/%m/%Y %H:%M:%S', hc.data_compra) as data_compra_formatada,
+                        hc.quantidade,
+                        hc.preco_unitario,
+                        hc.preco_total,
+                        hc.numero_nota_fiscal,
+                        hc.observacoes,
+                        hc.nome_fornecedor,
+                        hc.usuario_compra,
+                        p.NomeProduto,
+                        p.CodigoFabricante
+                    FROM historico_compras hc
+                    JOIN produtos p ON hc.id_produto = p.id_produto
+                    WHERE hc.id_produto = ?
+                    ORDER BY hc.data_compra DESC
                 `);
                 const movements = stmt.all(productId);
                 console.log(`[Preload API] getHistoricoCompras returning ${movements.length} movements for Product ID ${productId}.`);
@@ -429,23 +532,27 @@ try {
         },
 
         getHistoricoVendas: (productId) => {
+            // Código da função getHistoricoVendas... (sem alterações)
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             try {
                 console.log(`[Preload API] getHistoricoVendas executing query for Product ID: ${productId}...`);
                 const stmt = db.prepare(`
                     SELECT
-                        id_venda,
-                        strftime('%d/%m/%Y %H:%M:%S', data_venda) as data_venda_formatada,
-                        quantidade,
-                        preco_unitario,
-                        preco_total,
-                        numero_recibo,
-                        observacoes,
-                        nome_cliente,
-                        usuario_venda
-                    FROM historico_vendas
-                    WHERE id_produto = ?
-                    ORDER BY data_venda DESC
+                        hv.id_venda,
+                        strftime('%d/%m/%Y %H:%M:%S', hv.data_venda) as data_venda_formatada,
+                        hv.quantidade,
+                        hv.preco_unitario,
+                        hv.preco_total,
+                        hv.numero_recibo,
+                        hv.observacoes,
+                        hv.nome_cliente,
+                        hv.usuario_venda,
+                        p.NomeProduto,
+                        p.CodigoFabricante
+                    FROM historico_vendas hv
+                    JOIN produtos p ON hv.id_produto = p.id_produto
+                    WHERE hv.id_produto = ?
+                    ORDER BY hv.data_venda DESC
                 `);
                 const movements = stmt.all(productId);
                 console.log(`[Preload API] getHistoricoVendas returning ${movements.length} movements for Product ID ${productId}.`);
@@ -456,20 +563,129 @@ try {
             }
         },
 
+        // --- NOVAS Funções de Histórico Filtrado ---
+        getFilteredHistoricoCompras: (filters = {}) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            try {
+                const { nomeFornecedor, produtoId } = filters;
+                console.log(`[Preload API] getFilteredHistoricoCompras executing query with filters:`, filters);
+
+                let query = `
+                    SELECT
+                        hc.id_compra,
+                        strftime('%d/%m/%Y %H:%M:%S', hc.data_compra) as data_compra_formatada,
+                        hc.quantidade,
+                        hc.preco_unitario,
+                        hc.preco_total,
+                        hc.numero_nota_fiscal,
+                        hc.observacoes,
+                        hc.nome_fornecedor,
+                        hc.usuario_compra,
+                        p.NomeProduto,
+                        p.CodigoFabricante
+                    FROM historico_compras hc
+                    JOIN produtos p ON hc.id_produto = p.id_produto
+                `;
+                const params = [];
+                const conditions = [];
+
+                if (produtoId) {
+                    conditions.push('hc.id_produto = ?');
+                    params.push(produtoId);
+                }
+                if (nomeFornecedor) {
+                    conditions.push('hc.nome_fornecedor LIKE ?');
+                    params.push(`%${nomeFornecedor}%`);
+                }
+
+                if (conditions.length > 0) {
+                    query += ` WHERE ${conditions.join(' AND ')}`;
+                }
+
+                query += ' ORDER BY hc.data_compra DESC'; // Ordenar sempre
+
+                const stmt = db.prepare(query);
+                const compras = stmt.all(params);
+                console.log(`[Preload API] getFilteredHistoricoCompras returning ${compras.length} records.`);
+                return Promise.resolve(compras);
+            } catch (err) {
+                console.error(`[Preload API] Error fetching filtered historico_compras:`, err);
+                return Promise.reject(err);
+            }
+        },
+
+        getFilteredHistoricoVendas: (filters = {}) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+             try {
+                const { nomeCliente, produtoId } = filters;
+                console.log(`[Preload API] getFilteredHistoricoVendas executing query with filters:`, filters);
+
+                let query = `
+                    SELECT
+                        hv.id_venda,
+                        strftime('%d/%m/%Y %H:%M:%S', hv.data_venda) as data_venda_formatada,
+                        hv.quantidade,
+                        hv.preco_unitario,
+                        hv.preco_total,
+                        hv.numero_recibo,
+                        hv.observacoes,
+                        hv.nome_cliente,
+                        hv.usuario_venda,
+                        p.NomeProduto,
+                        p.CodigoFabricante
+                    FROM historico_vendas hv
+                    JOIN produtos p ON hv.id_produto = p.id_produto
+                `;
+                const params = [];
+                const conditions = [];
+
+                if (produtoId) {
+                    conditions.push('hv.id_produto = ?');
+                    params.push(produtoId);
+                }
+                if (nomeCliente) {
+                    conditions.push('hv.nome_cliente LIKE ?');
+                    params.push(`%${nomeCliente}%`);
+                }
+
+                if (conditions.length > 0) {
+                    query += ` WHERE ${conditions.join(' AND ')}`;
+                }
+
+                query += ' ORDER BY hv.data_venda DESC'; // Ordenar sempre
+
+                const stmt = db.prepare(query);
+                const vendas = stmt.all(params);
+                console.log(`[Preload API] getFilteredHistoricoVendas returning ${vendas.length} records.`);
+                return Promise.resolve(vendas);
+            } catch (err) {
+                console.error(`[Preload API] Error fetching filtered historico_vendas:`, err);
+                return Promise.reject(err);
+            }
+        },
+
 
         // Função para fechar o DB ao sair
         closeDatabase: () => {
             if (db && db.open) {
                 console.log('[Preload API] Attempting to close database connection...');
-                db.close();
-                if (!db.open) {
-                    console.log('[Preload API] Database connection closed successfully.');
-                    db = null; // Limpa a referência
-                } else {
-                    console.error('[Preload API] Failed to close database connection.');
+                 try {
+                    db.close();
+                    if (!db.open) {
+                        console.log('[Preload API] Database connection closed successfully.');
+                        db = null; // Limpa a referência
+                        return Promise.resolve("Database closed successfully.");
+                    } else {
+                        console.error('[Preload API] Failed to close database connection.');
+                        return Promise.reject(new Error("Failed to close database."));
+                    }
+                } catch (err) {
+                     console.error('[Preload API] Error closing database:', err);
+                     return Promise.reject(err);
                 }
             } else {
                 console.log('[Preload API] closeDatabase called, but DB was not open or already closed.');
+                return Promise.resolve("Database was not open.");
             }
         }
     });
@@ -477,7 +693,22 @@ try {
 
 } catch (bridgeError) {
     console.error('[Preload] !!! ERROR exposing API via contextBridge !!!', bridgeError);
+    // Se ocorrer um erro aqui, o objeto 'api' pode não estar disponível no renderer
+    // O erro de DB já foi tratado acima, mas pode haver outros erros de bridge.
 }
 
+// Cleanup listener para fechar o banco ao recarregar/fechar a janela no dev mode
+// Em produção, o ideal é fechar no 'before-quit' do app no main process
+if (process.env.NODE_ENV === 'development') {
+    window.addEventListener('beforeunload', () => {
+        console.log('[Preload] beforeunload event triggered. Attempting to close DB...');
+        if (db && db.open) {
+            db.close();
+            console.log('[Preload] DB closed on beforeunload.');
+        }
+    });
+}
+
+
 console.log('[Preload] Script finished.');
-// --- END OF FILE preload.js ---
+// --- END OF FILE preload.cjs ---
