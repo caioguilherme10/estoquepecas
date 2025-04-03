@@ -45,9 +45,9 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
         e.preventDefault();
 
         const errors = {};
-        if (!formData.CodigoFabricante) {
+        /*if (!formData.CodigoFabricante) {
             errors.CodigoFabricante = 'Código do Fabricante é obrigatório.';
-        }
+        }*/
         if (!formData.NomeProduto) {
             errors.NomeProduto = 'Nome do Produto é obrigatório.';
         }
@@ -93,9 +93,9 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
                     <form onSubmit={handleSubmit} className="p-6 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="CodigoFabricante" className={labelCssStyles}>Código Fabricante *</label>
-                                <input type="text" name="CodigoFabricante" placeholder="Código do Fabricante" onChange={handleChange} value={formData.CodigoFabricante} className={inputCssStyles} required />
-                                {formErrors.CodigoFabricante && <p className={errorCss}>{formErrors.CodigoFabricante}</p>}
+                                <label htmlFor="CodigoFabricante" className={labelCssStyles}>Código Fabricante</label>
+                                <input type="text" name="CodigoFabricante" placeholder="Código do Fabricante" onChange={handleChange} value={formData.CodigoFabricante} className={inputCssStyles} />
+                                {/*formErrors.CodigoFabricante && <p className={errorCss}>{formErrors.CodigoFabricante}</p>*/}
                             </div>
                             <div>
                                 <label htmlFor="NomeProduto" className={labelCssStyles}>Nome Produto *</label>

@@ -186,43 +186,49 @@ try {
     // Se o DB conectou, expõe a API completa
     contextBridge.exposeInMainWorld('api', {
         // --- Funções de Produto (mantidas como antes) ---
-        getProducts: (searchTerm = null, includeInactive = false) => {
-             // Código da função getProducts... (sem alterações)
+        getProducts: (searchTerm = null, statusFilter = 'active') => { // Alterado: includeInactive -> statusFilter
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            try {
-                let query = `
-                    SELECT id_produto, Marca, CodigoFabricante, NomeProduto, QuantidadeEstoque, Preco, Localizacao, EstoqueMinimo, Aplicacao, Ativo
-                    FROM produtos
-                `;
-                const params = [];
-                const conditions = [];
+            console.log(`[Preload API] getProducts called with searchTerm: "${searchTerm}", statusFilter: "${statusFilter}"`); // Log do filtro
+           try {
+               let query = `
+                   SELECT id_produto, Marca, CodigoFabricante, NomeProduto, QuantidadeEstoque, Preco, Localizacao, EstoqueMinimo, Aplicacao, Ativo
+                   FROM produtos
+               `;
+               const params = [];
+               const conditions = [];
 
-                if (!includeInactive) {
-                    conditions.push("Ativo = TRUE");
-                }
+               // *** LÓGICA DO FILTRO DE STATUS ***
+               if (statusFilter === 'active') {
+                   conditions.push("Ativo = TRUE"); // Ou Ativo = 1 se armazenar como inteiro
+               } else if (statusFilter === 'inactive') {
+                   conditions.push("Ativo = FALSE"); // Ou Ativo = 0
+               }
+               // Se statusFilter for 'all' ou qualquer outro valor, não adiciona filtro de Ativo
 
-                if (searchTerm) {
-                    conditions.push(`(NomeProduto LIKE ? OR CodigoFabricante LIKE ? OR Marca LIKE ? OR Aplicacao LIKE ? OR CodigoBarras LIKE ?)`);
-                    const likeTerm = `%${searchTerm}%`;
-                    params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
-                }
+               // *** LÓGICA DO FILTRO DE BUSCA (searchTerm) ***
+               if (searchTerm) {
+                   conditions.push(`(NomeProduto LIKE ? OR CodigoFabricante LIKE ? OR Marca LIKE ? OR Aplicacao LIKE ? OR CodigoBarras LIKE ?)`);
+                   const likeTerm = `%${searchTerm}%`;
+                   params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
+               }
 
-                if (conditions.length > 0) {
-                    query += ` WHERE ${conditions.join(' AND ')}`;
-                }
+               // Junta as condições com WHERE e AND, se houver alguma
+               if (conditions.length > 0) {
+                   query += ` WHERE ${conditions.join(' AND ')}`;
+               }
 
-                query += ' ORDER BY NomeProduto';
+               query += ' ORDER BY NomeProduto'; // Ordena sempre
 
-                console.log(`[Preload API] getProducts executing query (Search: ${searchTerm || 'None'})...`);
-                const stmt = db.prepare(query);
-                const products = stmt.all(params);
-                console.log(`[Preload API] getProducts returning ${products.length} products.`);
-                return Promise.resolve(products);
-            } catch (err) {
-                console.error("[Preload API] Error in getProducts query:", err);
-                return Promise.reject(err);
-            }
-        },
+               console.log(`[Preload API] getProducts executing query: ${query}`); // Log da query final
+               const stmt = db.prepare(query);
+               const products = stmt.all(params);
+               console.log(`[Preload API] getProducts returning ${products.length} products.`);
+               return Promise.resolve(products);
+           } catch (err) {
+               console.error("[Preload API] Error in getProducts query:", err);
+               return Promise.reject(err);
+           }
+       },
 
         getProductById: (id) => {
              // Código da função getProductById... (sem alterações)
@@ -245,20 +251,23 @@ try {
 
         addProduct: (productData) => {
             // Código da função addProduct... (sem alterações)
-             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            if (!productData || !productData.CodigoFabricante || !productData.NomeProduto) {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            //if (!productData || !productData.CodigoFabricante || !productData.NomeProduto) {
+            if (!productData || !productData.NomeProduto) {
                 return Promise.reject(new Error("Dados incompletos (Código Fabricante e Nome são obrigatórios)."));
             }
 
             const transaction = db.transaction(() => {
-                const stmtCheckFab = db.prepare('SELECT id_produto FROM produtos WHERE CodigoFabricante = ?');
-                if (productData.CodigoFabricante && stmtCheckFab.get(productData.CodigoFabricante)) {
+                //const stmtCheckFab = db.prepare('SELECT id_produto FROM produtos WHERE CodigoFabricante = ?');
+                /*if (productData.CodigoFabricante && stmtCheckFab.get(productData.CodigoFabricante)) {
                     throw new Error(`Código do Fabricante '${productData.CodigoFabricante}' já existe.`);
-                }
-                const stmtCheckBar = db.prepare('SELECT id_produto FROM produtos WHERE CodigoBarras = ?');
-                 if (productData.CodigoBarras && stmtCheckBar.get(productData.CodigoBarras)) {
+                }*/
+                //const stmtCheckBar = db.prepare('SELECT id_produto FROM produtos WHERE CodigoBarras = ?');
+                /*if (productData.CodigoBarras && stmtCheckBar.get(productData.CodigoBarras)) {
                     throw new Error(`Código de Barras '${productData.CodigoBarras}' já existe.`);
-                }
+                }*/
+
+                const ativoValue = (productData.Ativo !== undefined ? productData.Ativo : true) ? 1 : 0;
 
                 const stmt = db.prepare(`
                     INSERT INTO produtos (
@@ -273,7 +282,7 @@ try {
                 `);
                 const info = stmt.run({
                     CodigoBarras: productData.CodigoBarras || null,
-                    CodigoFabricante: productData.CodigoFabricante,
+                    CodigoFabricante: productData.CodigoFabricante || null,
                     NomeProduto: productData.NomeProduto,
                     Marca: productData.Marca || null,
                     Descricao: productData.Descricao || null,
@@ -282,7 +291,7 @@ try {
                     EstoqueMinimo: parseInt(productData.EstoqueMinimo || 1, 10),
                     Preco: parseFloat(productData.Preco || 0.0),
                     Localizacao: productData.Localizacao || null,
-                    Ativo: productData.Ativo === false ? false : true
+                    Ativo: ativoValue
                 });
                 return info.lastInsertRowid;
             });
@@ -399,11 +408,11 @@ try {
             }
         },
 
-        desativarProduto: async (id) => { // Alterado para async/await
+        desativarProduto: async (id) => { // Renomear para toggleProductActive seria mais claro
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            console.log(`[Preload API] desativarProduto/ativarProduto called for ID: ${id}`);
+            console.log(`[Preload API] Toggling active status for product ID: ${id}`); // Log mais claro
             try {
-                // Primeiro, verifica o estado atual
+                // Primeiro, verifica o estado atual (que virá como 1, 0 ou talvez NULL)
                 const stmtCheck = db.prepare('SELECT Ativo FROM produtos WHERE id_produto = ?');
                 const product = stmtCheck.get(id);
 
@@ -411,25 +420,44 @@ try {
                     return Promise.reject(new Error(`Produto com ID ${id} não encontrado.`));
                 }
 
-                const novoEstado = !product.Ativo; // Inverte o estado atual
+                // Inverte o estado atual para booleano JS
+                // Considera NULL como inativo (falsy)
+                const estadoAtualBool = Boolean(product.Ativo); // Converte 1 para true, 0/NULL para false
+                const novoEstadoBool = !estadoAtualBool;
+
+                // *** CORREÇÃO AQUI: Converte o novo estado booleano para inteiro ***
+                const novoEstadoInt = novoEstadoBool ? 1 : 0;
 
                 const stmt = db.prepare('UPDATE produtos SET Ativo = ? WHERE id_produto = ?');
-                const info = stmt.run(novoEstado, id);
+                // *** Passa o inteiro para o banco de dados ***
+                const info = stmt.run(novoEstadoInt, id);
 
                 if (info.changes === 0) {
-                    // Isso não deveria acontecer se o produto foi encontrado antes, mas é uma segurança
-                    console.warn(`[Preload API] toggleAtivo: No rows updated for ID ${id}.`);
-                    return Promise.reject(new Error(`Produto com ID ${id} não encontrado para alterar estado.`));
+                    console.warn(`[Preload API] toggleProductActive: No rows updated for ID ${id}.`);
+                     // Verifica se o produto realmente existe (caso raro de condição de corrida)
+                     const exists = db.prepare('SELECT 1 FROM produtos WHERE id_produto = ?').get(id);
+                     if (!exists) {
+                        return Promise.reject(new Error(`Produto com ID ${id} não encontrado para alterar estado.`));
+                     } else {
+                        // Estado pode já ser o desejado
+                         return Promise.resolve({ changes: 0, message: 'Nenhum estado alterado.', novoEstado: novoEstadoBool });
+                     }
                 }
 
-                const message = novoEstado ? 'Produto ativado com sucesso!' : 'Produto desativado com sucesso!';
-                console.log(`[Preload API] toggleAtivo successful for ID: ${id}. Rows changed: ${info.changes}. Novo estado: ${novoEstado}`);
-                return Promise.resolve({ changes: info.changes, message: message, novoEstado: novoEstado });
+                // Usa o estado booleano para a mensagem e retorno
+                const message = novoEstadoBool ? 'Produto ativado com sucesso!' : 'Produto desativado com sucesso!';
+                console.log(`[Preload API] toggleProductActive successful for ID: ${id}. Rows changed: ${info.changes}. Novo estado: ${novoEstadoBool}`);
+                return Promise.resolve({ changes: info.changes, message: message, novoEstado: novoEstadoBool }); // Retorna o booleano
+
             } catch (err) {
-                console.error(`[Preload API] Error toggling ativo for product ID ${id}:`, err);
+                console.error(`[Preload API] Error toggling active for product ID ${id}:`, err);
+                 if (err instanceof TypeError && err.message.includes('SQLite3 can only bind')) {
+                    console.error("[Preload API] Binding error detail on product toggle:", { id });
+                    return Promise.reject(new Error(`Erro de tipo ao alterar status do produto: ${err.message}`));
+                 }
                 return Promise.reject(err);
             }
-        },
+        }, // Fim da função desativarProduto/toggleProductActive
 
         // --- Funções de Compra e Venda (ATUALIZADAS) ---
         addCompra: (compraData) => { // Recebe compraData que agora inclui idUsuarioLogado
@@ -703,35 +731,45 @@ try {
         },
 
         addUser: async (userData) => {
-             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-             if (!userData || !userData.nome_usuario || !userData.senha || !userData.nome_completo || !userData.permissao) {
-                 return Promise.reject(new Error("Dados incompletos para criar usuário."));
-             }
-             console.log(`[Preload API] Attempting to add user: ${userData.nome_usuario}`);
-             try {
-                 // Gera o hash da senha
-                 const hashedPassword = await bcrypt.hash(userData.senha, saltRounds);
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            // ... (validações de dados incompletos) ...
+            if (!userData || !userData.nome_usuario || !userData.senha || !userData.nome_completo || !userData.permissao) {
+                return Promise.reject(new Error("Dados incompletos para criar usuário."));
+            }
+            console.log(`[Preload API] Attempting to add user: ${userData.nome_usuario}`);
+            try {
+                const hashedPassword = await bcrypt.hash(userData.senha, saltRounds);
 
-                 const stmt = db.prepare(`
-                     INSERT INTO usuarios (nome_usuario, senha_hash, nome_completo, permissao, ativo)
-                     VALUES (@nome_usuario, @senha_hash, @nome_completo, @permissao, @ativo)
-                 `);
-                 const info = stmt.run({
-                     nome_usuario: userData.nome_usuario,
-                     senha_hash: hashedPassword,
-                     nome_completo: userData.nome_completo,
-                     permissao: userData.permissao,
-                     ativo: userData.ativo !== undefined ? userData.ativo : true // Default true se não especificado
-                 });
-                 console.log(`[Preload API] User ${userData.nome_usuario} added successfully. ID: ${info.lastInsertRowid}`);
-                 return Promise.resolve({ id: info.lastInsertRowid, message: 'Usuário criado com sucesso!' });
-             } catch (err) {
-                 console.error("[Preload API] Error adding user:", err);
-                  if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-                     return Promise.reject(new Error(`O nome de usuário '${userData.nome_usuario}' já existe.`));
-                 }
-                 return Promise.reject(err);
-             }
+                // *** CORREÇÃO AQUI ***
+                // Determina o valor numérico para 'ativo'
+                const ativoValue = (userData.ativo !== undefined ? userData.ativo : true) ? 1 : 0;
+
+                const stmt = db.prepare(`
+                    INSERT INTO usuarios (nome_usuario, senha_hash, nome_completo, permissao, ativo)
+                    VALUES (@nome_usuario, @senha_hash, @nome_completo, @permissao, @ativo)
+                `);
+                const info = stmt.run({
+                    nome_usuario: userData.nome_usuario,
+                    senha_hash: hashedPassword,
+                    nome_completo: userData.nome_completo,
+                    permissao: userData.permissao,
+                    ativo: ativoValue // *** USA O VALOR NUMÉRICO ***
+                });
+                console.log(`[Preload API] User ${userData.nome_usuario} added successfully. ID: ${info.lastInsertRowid}`);
+                return Promise.resolve({ id: info.lastInsertRowid, message: 'Usuário criado com sucesso!' });
+            } catch (err) {
+                // ... (tratamento de erro existente) ...
+                console.error("[Preload API] Error adding user:", err);
+                if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+                    return Promise.reject(new Error(`O nome de usuário '${userData.nome_usuario}' já existe.`));
+                }
+                // Verifica se o erro é o de tipo (embora a correção deva prevenir)
+                if (err instanceof TypeError && err.message.includes('SQLite3 can only bind')) {
+                   console.error("[Preload API] Binding error detail:", { userData }); // Loga os dados para debug
+                   return Promise.reject(new Error(`Erro de tipo ao salvar usuário: ${err.message}`));
+                }
+                return Promise.reject(err);
+            }
         },
 
         getAllUsers: () => {
@@ -754,74 +792,93 @@ try {
             if (!id || !userData) return Promise.reject(new Error("ID e dados do usuário são obrigatórios."));
              console.log(`[Preload API] Attempting to update user ID: ${id}`);
 
-             // Campos que podem ser atualizados (exceto senha por enquanto)
              const fields = [];
              const params = { id_usuario: id };
 
              if (userData.nome_completo !== undefined) { fields.push("nome_completo = @nome_completo"); params.nome_completo = userData.nome_completo; }
              if (userData.permissao !== undefined) { fields.push("permissao = @permissao"); params.permissao = userData.permissao; }
-             if (userData.ativo !== undefined) { fields.push("ativo = @ativo"); params.ativo = userData.ativo; }
-              // Se uma nova senha foi fornecida, hasheia e atualiza
+
+             // *** CORREÇÃO AQUI ***
+             if (userData.ativo !== undefined) {
+                 fields.push("ativo = @ativo");
+                 params.ativo = userData.ativo ? 1 : 0; // Converte para 1 ou 0
+             }
+
              if (userData.senha) {
-                 console.log(`[Preload API] Updating password for user ID: ${id}`);
-                 try {
-                     const hashedPassword = await bcrypt.hash(userData.senha, saltRounds);
-                     fields.push("senha_hash = @senha_hash");
-                     params.senha_hash = hashedPassword;
-                 } catch(hashError) {
-                      console.error(`[Preload API] Error hashing new password for user ID ${id}:`, hashError);
-                      return Promise.reject(new Error("Erro ao processar nova senha."));
-                 }
+                 // ... (lógica de hash de senha existente) ...
+                  console.log(`[Preload API] Updating password for user ID: ${id}`);
+                  try {
+                      const hashedPassword = await bcrypt.hash(userData.senha, saltRounds);
+                      fields.push("senha_hash = @senha_hash");
+                      params.senha_hash = hashedPassword;
+                  } catch(hashError) {
+                       console.error(`[Preload API] Error hashing new password for user ID ${id}:`, hashError);
+                       return Promise.reject(new Error("Erro ao processar nova senha."));
+                  }
              }
 
              if (fields.length === 0) {
-                 return Promise.reject(new Error("Nenhum dado fornecido para atualização."));
+                 return Promise.resolve({ changes: 0, message: "Nenhum dado fornecido para atualização." }); // Retorna sucesso sem alterações
+                 // return Promise.reject(new Error("Nenhum dado fornecido para atualização.")); // Ou rejeita se preferir
              }
 
              try {
                  const query = `UPDATE usuarios SET ${fields.join(', ')} WHERE id_usuario = @id_usuario`;
                  const stmt = db.prepare(query);
-                 const info = stmt.run(params);
+                 const info = stmt.run(params); // Passa os params com 'ativo' já convertido
 
                  if (info.changes === 0) {
-                     return Promise.reject(new Error(`Usuário com ID ${id} não encontrado.`));
+                      // Pode ser que o usuário não exista, ou os dados sejam os mesmos
+                      // Verifica se o usuário existe
+                      const userExists = db.prepare('SELECT 1 FROM usuarios WHERE id_usuario = ?').get(id);
+                      if (!userExists) {
+                        return Promise.reject(new Error(`Usuário com ID ${id} não encontrado.`));
+                      } else {
+                         // Se existe mas não mudou, pode ser considerado sucesso ou um aviso
+                        console.log(`[Preload API] User ID ${id} update called, but no data changed.`);
+                        return Promise.resolve({ changes: 0, message: 'Nenhum dado foi alterado.' });
+                      }
                  }
                  console.log(`[Preload API] User ID ${id} updated successfully.`);
                  return Promise.resolve({ changes: info.changes, message: 'Usuário atualizado com sucesso!' });
              } catch (err) {
+                  // ... (tratamento de erro existente) ...
                   console.error(`[Preload API] Error updating user ID ${id}:`, err);
-                  if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' && err.message.includes('nome_usuario')) {
-                     // A checagem de nome de usuário único deveria ser feita antes se permitir alterar nome_usuario
-                     return Promise.reject(new Error(`O nome de usuário já está em uso por outro usuário.`));
-                 }
-                 return Promise.reject(err);
+                   if (err instanceof TypeError && err.message.includes('SQLite3 can only bind')) {
+                      console.error("[Preload API] Binding error detail on update:", { id, userData, params });
+                      return Promise.reject(new Error(`Erro de tipo ao atualizar usuário: ${err.message}`));
+                   }
+                  return Promise.reject(err);
              }
-        },
+         },
 
-        // Função para ativar/desativar usuário (simplificada)
-        toggleUserActive: (id) => {
-             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-             console.log(`[Preload API] Toggling active status for user ID: ${id}`);
-             try {
-                 // Pega o estado atual e inverte
-                 const currentState = db.prepare('SELECT ativo FROM usuarios WHERE id_usuario = ?').get(id);
-                 if (!currentState) {
-                     return Promise.reject(new Error(`Usuário com ID ${id} não encontrado.`));
-                 }
-                 const newState = !currentState.ativo;
-                 const stmt = db.prepare('UPDATE usuarios SET ativo = ? WHERE id_usuario = ?');
-                 const info = stmt.run(newState, id);
+         toggleUserActive: (id) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            console.log(`[Preload API] Toggling active status for user ID: ${id}`);
+            try {
+                const currentState = db.prepare('SELECT ativo FROM usuarios WHERE id_usuario = ?').get(id);
+                if (!currentState) {
+                    return Promise.reject(new Error(`Usuário com ID ${id} não encontrado.`));
+                }
+                // O estado atual já vem como 0 ou 1 do banco
+                const newStateBool = !currentState.ativo; // Inverte (será true ou false)
+                const newStateInt = newStateBool ? 1 : 0; // *** Converte para inteiro ***
 
-                 if (info.changes === 0) {
-                    return Promise.reject(new Error(`Usuário com ID ${id} não encontrado para alterar status.`));
-                 }
-                 const message = newState ? 'Usuário ativado.' : 'Usuário desativado.';
-                 console.log(`[Preload API] User ID ${id} active status toggled to ${newState}.`);
-                 return Promise.resolve({ changes: info.changes, message, newState });
-             } catch (err) {
-                 console.error(`[Preload API] Error toggling user active status ID ${id}:`, err);
-                 return Promise.reject(err);
-             }
+                const stmt = db.prepare('UPDATE usuarios SET ativo = ? WHERE id_usuario = ?');
+                const info = stmt.run(newStateInt, id); // *** Passa o inteiro ***
+
+                if (info.changes === 0) {
+                   // Isso não deveria acontecer se o usuário foi encontrado antes
+                   return Promise.reject(new Error(`Usuário com ID ${id} não encontrado para alterar status.`));
+                }
+                const message = newStateBool ? 'Usuário ativado.' : 'Usuário desativado.';
+                console.log(`[Preload API] User ID ${id} active status toggled to ${newStateBool}.`);
+                // Retorna o estado booleano para o frontend, se útil
+                return Promise.resolve({ changes: info.changes, message, newState: newStateBool });
+            } catch (err) {
+                console.error(`[Preload API] Error toggling user active status ID ${id}:`, err);
+                return Promise.reject(err);
+            }
         },
 
         // Função para fechar o DB ao sair

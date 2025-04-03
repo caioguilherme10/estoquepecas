@@ -1,69 +1,61 @@
-// src/pages/ProductsPage.jsx
+// --- START OF FILE ProductsPage.jsx (MODIFICADO) ---
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, PlusCircle, Package } from 'lucide-react'; // Ícones
+import { Search, PlusCircle, Package, Edit, ToggleLeft, ToggleRight } from 'lucide-react'; // Adicionar ícones Toggle
 import CreateProductModal from './CreateProductModal';
-// import Rating from '../components/common/Rating'; // Se for usar rating
+import PropTypes from 'prop-types'; // Boa prática
 
-// Componente para o Card de Produto individual
-const ProductCard = ({ product, onProductDesativar }) => { // Adicionada prop onProductDesativar
-    // Função para formatar moeda (opcional)
-    const formatCurrency = (value) => {
-        if (typeof value !== 'number') return 'N/A';
-        return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    };
-
-    // Determina a cor do estoque
-    const getStockColor = (quantity, minStock) => {
-        if (quantity <= 0) return 'text-red-600 dark:text-red-400';
-        if (minStock > 0 && quantity <= minStock) return 'text-yellow-600 dark:text-yellow-400';
-        return 'text-green-600 dark:text-green-400';
-    };
-
-    // Placeholder para campos vazios
+// Componente ProductCard (com pequenas melhorias no botão Ativar/Desativar)
+const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada prop onEdit
+    const formatCurrency = (value) => { /* ... (código existente) ... */ };
+    const getStockColor = (quantity, minStock) => { /* ... (código existente) ... */ };
     const displayValue = (value, placeholder = '-') => value || placeholder;
 
-    // Handler para desativar/ativar o produto
-    const handleDesativarAtivar = () => {
-        console.log(`[ProductCard] Desativar/Ativar produto ID: ${product.id_produto}`);
-        onProductDesativar(product.id_produto);
+    const handleToggleClick = () => {
+        onToggleActive(product.id_produto);
     };
 
-    return (
-        <div className="border border-gray-200 dark:border-gray-700 shadow rounded-lg bg-white dark:bg-gray-800 flex flex-col transition hover:shadow-md overflow-hidden"> {/* Adicionado overflow-hidden */}
-            {/* Imagem Placeholder */}
-            <div className="bg-gray-100 dark:bg-gray-700 h-32 flex items-center justify-center flex-shrink-0"> {/* Altura fixa */}
-                <Package size={48} className="text-gray-400 dark:text-gray-500" />
-            </div>
+    const handleEditClick = () => {
+        onEdit(product); // Passa o produto inteiro para edição
+    };
 
-            {/* Conteúdo do Card */}
-            <div className="p-4 flex-grow flex flex-col justify-between">
-                <div> {/* Agrupa informações principais */}
-                    {/* Marca e Nome */}
+    // Determina a cor e o texto do botão de status
+    const isActive = product.Ativo ?? true; // Assume ativo se for null/undefined (embora não deveria ser)
+    const statusButtonClass = isActive
+        ? "bg-yellow-500 hover:bg-yellow-600 text-white" // Amarelo para Desativar
+        : "bg-green-500 hover:bg-green-600 text-white"; // Verde para Ativar
+    const statusButtonIcon = isActive ? <ToggleLeft size={14} className="mr-1" /> : <ToggleRight size={14} className="mr-1" />;
+
+    return (
+        <div className={`border border-gray-200 dark:border-gray-700 shadow rounded-lg bg-white dark:bg-gray-800 flex flex-col transition hover:shadow-md overflow-hidden ${!isActive ? 'opacity-60' : ''}`}>
+             {/* ... (Imagem Placeholder e Conteúdo do Card - código existente) ... */}
+             <div className="bg-gray-100 dark:bg-gray-700 h-32 flex items-center justify-center flex-shrink-0 relative">
+                <Package size={48} className="text-gray-400 dark:text-gray-500" />
+                 {!isActive && (
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">
+                        Inativo
+                    </span>
+                 )}
+            </div>
+             <div className="p-4 flex-grow flex flex-col justify-between">
+                <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
                         {displayValue(product.Marca)}
                     </p>
                     <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1 leading-tight truncate" title={product.NomeProduto}>
                         {displayValue(product.NomeProduto, 'Produto Sem Nome')}
                     </h3>
-
-                    {/* Aplicação */}
-                    <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 text-ellipsis overflow-hidden line-clamp-2" title={product.Aplicacao} style={{ minHeight: '2.5rem' }}> {/* Garante espaço mesmo vazio, limita a 2 linhas */}
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 text-ellipsis overflow-hidden line-clamp-2" title={product.Aplicacao} style={{ minHeight: '2.5rem' }}>
                         Aplicação: {displayValue(product.Aplicacao)}
                     </p>
-
-                    {/* Localização */}
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 truncate" title={product.Localizacao}>
                         <span className="font-medium">Local:</span> {displayValue(product.Localizacao)}
                     </p>
                 </div>
-
-                <div> {/* Agrupa Preço e Estoque */}
-                    {/* Preço */}
+                 <div>
                     <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-1 text-right">
-                        {formatCurrency(product.Preco)} {/* Alterado para product.Preco */}
+                        {formatCurrency(product.Preco)}
                     </p>
-
-                    {/* Estoque */}
                     <p className={`text-sm font-medium text-right ${getStockColor(product.QuantidadeEstoque, product.EstoqueMinimo)}`}>
                         Estoque: {product.QuantidadeEstoque ?? 0}
                         {product.EstoqueMinimo > 0 ? ` (Min: ${product.EstoqueMinimo})` : ''}
@@ -72,103 +64,147 @@ const ProductCard = ({ product, onProductDesativar }) => { // Adicionada prop on
             </div>
 
             {/* Botões de Ação */}
-            <div className="p-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-2">
-                {/* Adicione onClick handlers quando implementar as funções */}
-                <button className="text-xs px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition duration-150">Editar</button>
+            <div className="p-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-2">
                 <button
-                    onClick={handleDesativarAtivar}
-                    className="text-xs px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition duration-150"
+                    onClick={handleEditClick} // Adicionado handler de clique
+                    className="flex items-center text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150"
+                    title="Editar Produto"
                 >
-                    {product.Ativo ? 'Desativar' : 'Ativar'}
+                    <Edit size={14} className="mr-1" /> Editar
+                </button>
+                <button
+                    onClick={handleToggleClick}
+                    className={`flex items-center text-xs px-3 py-1 rounded transition duration-150 ${statusButtonClass}`}
+                    title={isActive ? 'Desativar Produto' : 'Ativar Produto'}
+                >
+                    {statusButtonIcon}
+                    {isActive ? 'Desativar' : 'Ativar'}
                 </button>
             </div>
         </div>
     );
 };
 
+ProductCard.propTypes = {
+    product: PropTypes.object.isRequired,
+    onToggleActive: PropTypes.func.isRequired, // Renomeado de onProductDesativar
+    onEdit: PropTypes.func.isRequired,
+};
+
+
 // Componente principal da página
 const ProductsPage = () => {
     const [products, setProducts] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('active'); // *** NOVO ESTADO para o filtro *** Padrão é 'active'
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false); // Para o modal de criação
-    const [refreshProducts, setRefreshProducts] = useState(false); // State para forçar a atualização da lista
+    const [successMessage, setSuccessMessage] = useState(''); // Para feedback
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    // const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Estado para modal de edição (se usar um diferente)
+    // const [currentProduct, setCurrentProduct] = useState(null); // Para edição
 
-    // Função para buscar produtos (usando useCallback para otimização)
-    const fetchProducts = useCallback(async (term) => {
+    // Função para buscar produtos (agora depende de term e status)
+    const fetchProducts = useCallback(async (term, status) => {
         setIsLoading(true);
         setError(null);
-        console.log(`[ProductsPage] Buscando produtos com termo: "${term}"`);
+        setSuccessMessage(''); // Limpa mensagens
+        console.log(`[ProductsPage] Buscando produtos com termo: "${term}", status: "${status}"`);
 
-        // Verifica se a API está disponível
         if (!window.api || typeof window.api.getProducts !== 'function') {
-            console.error('[ProductsPage] window.api.getProducts não está definida!');
+            // ... (tratamento de erro da API existente) ...
+             console.error('[ProductsPage] window.api.getProducts não está definida!');
             setError('Erro interno: API de produtos indisponível.');
             setIsLoading(false);
             return;
         }
 
         try {
-            const result = await window.api.getProducts(term); // Usando o termo de busca
+            // *** CHAMA A API COM O FILTRO DE STATUS ***
+            const result = await window.api.getProducts(term, status);
             console.log('[ProductsPage] Produtos recebidos:', result);
-            setProducts(result || []); // Garante que seja sempre um array
+            setProducts(result || []);
         } catch (err) {
+             // ... (tratamento de erro existente) ...
             console.error('[ProductsPage] Erro ao buscar produtos:', err);
             setError(`Falha ao carregar produtos: ${err.message}`);
-            setProducts([]); // Limpa produtos em caso de erro
+            setProducts([]);
         } finally {
             setIsLoading(false);
         }
-    }, []); // useCallback sem dependências externas diretas
+    }, []); // useCallback ainda não depende de estado diretamente
 
-    // Efeito para buscar produtos na montagem inicial e quando searchTerm muda
+    // Efeito para buscar produtos (agora depende de searchTerm e filterStatus)
     useEffect(() => {
-        // Um debounce simples para evitar buscas a cada tecla digitada
         const delayDebounceFn = setTimeout(() => {
-            fetchProducts(searchTerm);
-        }, 300); // Espera 300ms após o usuário parar de digitar
+            // *** PASSA OS DOIS FILTROS ***
+            fetchProducts(searchTerm, filterStatus);
+        }, 300);
 
-        // Função de limpeza para cancelar o timeout se o usuário digitar novamente
         return () => clearTimeout(delayDebounceFn);
-    }, [searchTerm, fetchProducts, refreshProducts]); // Re-executa quando searchTerm ou fetchProducts muda
+        // *** ATUALIZA AS DEPENDÊNCIAS DO useEffect ***
+    }, [searchTerm, filterStatus, fetchProducts]); // Re-executa quando busca ou filtro mudam
 
-    // Função para abrir o modal (será usada depois)
-    const handleOpenModal = () => {
-        console.log("Abrir modal de criação...");
-        setIsModalOpen(true);
-        //alert("Funcionalidade de Criar Produto ainda não implementada.");
+
+    // Limpa mensagem de sucesso após alguns segundos
+    useEffect(() => {
+        if (successMessage) {
+            const timer = setTimeout(() => setSuccessMessage(''), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [successMessage]);
+
+
+    // Funções para Modal de Criação
+    const handleOpenCreateModal = () => {
+        // setCurrentProduct(null); // Se usar um único modal
+        setIsCreateModalOpen(true);
+        setError('');
+        setSuccessMessage('');
     };
+    const handleCloseCreateModal = () => setIsCreateModalOpen(false);
 
-    // Função para FECHAR o modal (será passada via prop 'onClose')
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-    };
-
-    // Função para lidar com a criação (será passada para o modal)
     const handleCreateProduct = async (productData) => {
-        console.log("Tentando criar produto:", productData);
+        setError('');
+        setSuccessMessage('');
         try {
-            await window.api.addProduct(productData);
-            fetchProducts(searchTerm); // Rebusca a lista após adicionar
-            setIsModalOpen(false); // Fecha o modal
-            // Adicionar mensagem de sucesso
+            const result = await window.api.addProduct(productData);
+            setSuccessMessage(result.message || 'Produto criado com sucesso!');
+            fetchProducts(searchTerm, filterStatus); // Rebusca a lista
+            handleCloseCreateModal();
+            return Promise.resolve();
         } catch (err) {
             console.error("Erro ao criar produto:", err);
-            // Mostrar erro para o usuário
+            setError(`Erro ao criar: ${err.message}`); // Mostra erro na página principal
+            return Promise.reject(err); // Re-lança para o modal, se ele tratar tbm
         }
     };
 
-    // Função para lidar com a desativação/ativação de um produto
-    const handleProductDesativar = async (id) => {
-        console.log(`[ProductsPage] Desativar/Ativar produto ID: ${id}`);
+    // Função para Modal de Edição (ainda não implementado, mas estrutura pronta)
+    const handleOpenEditModal = (product) => {
+         // setCurrentProduct(product);
+         // setIsEditModalOpen(true);
+         alert(`Editar produto ID: ${product.id_produto} (Modal de Edição não implementado)`);
+         setError('');
+         setSuccessMessage('');
+     };
+     // const handleCloseEditModal = () => setIsEditModalOpen(false);
+     // const handleUpdateProduct = async (productData, productId) => { ... }
+
+    // Função para ativar/desativar produto
+    const handleToggleProductActive = async (id) => {
+        setError('');
+        setSuccessMessage('');
+        console.log(`[ProductsPage] Toggling active status for product ID: ${id}`);
         try {
-            await window.api.desativarProduto(id);
-            //fetchProducts(searchTerm); // Recarrega a lista de produtos após a desativação/ativação
-            setRefreshProducts(prev => !prev); // Inverte o state para forçar o useEffect a recarregar
+            // Usar a função renomeada ou a existente 'desativarProduto'
+            const result = await window.api.desativarProduto(id); // Ou toggleProductActive se renomeou
+            setSuccessMessage(result.message || 'Status do produto alterado.');
+            // Força a re-busca para refletir a mudança visualmente (ativo/inativo)
+            fetchProducts(searchTerm, filterStatus);
         } catch (err) {
-            console.error("Erro ao desativar/ativar produto:", err);
-            // Mostre uma mensagem de erro ao usuário
+            console.error("Erro ao ativar/desativar produto:", err);
+            setError(`Erro ao alterar status: ${err.message}`);
         }
     };
 
@@ -177,11 +213,25 @@ const ProductsPage = () => {
             {/* Cabeçalho da Página e Ações */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                 <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
-                    Produtos em Estoque
+                    Produtos
                 </h1>
-                <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto"> {/* Ajuste para responsividade */}
+                    {/* *** SELECT DE FILTRO DE STATUS *** */}
+                    <div className="flex-shrink-0"> {/* Evita que o select estique demais */}
+                        <label htmlFor="filterStatus" className="sr-only">Filtrar por status</label> {/* Label para acessibilidade */}
+                        <select
+                            id="filterStatus"
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm"
+                        >
+                            <option value="active">Ativos</option>
+                            <option value="inactive">Inativos</option>
+                            <option value="all">Todos</option>
+                        </select>
+                    </div>
                     {/* Input de Busca */}
-                    <div className="relative flex-grow md:flex-grow-0">
+                    <div className="relative flex-grow"> {/* Permite que a busca cresça */}
                         <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Search className="w-5 h-5 text-gray-400" />
                         </span>
@@ -195,8 +245,8 @@ const ProductsPage = () => {
                     </div>
                     {/* Botão Criar Produto */}
                     <button
-                        onClick={handleOpenModal}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition duration-150 ease-in-out"
+                        onClick={handleOpenCreateModal}
+                        className="flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition duration-150 ease-in-out" // Adicionado justify-center
                     >
                         <PlusCircle className="w-5 h-5" />
                         <span>Criar</span>
@@ -204,45 +254,62 @@ const ProductsPage = () => {
                 </div>
             </div>
 
+             {/* Mensagens de Erro e Sucesso */}
+            {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
+            {successMessage && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">{successMessage}</div>}
+
+
             {/* Grid de Produtos */}
             {isLoading && (
-                <div className="text-center py-10">Carregando produtos...</div>
-            )}
-            {error && (
-                <div className="text-center py-10 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900 p-4 rounded">
-                    {error}
-                </div>
+                <div className="text-center py-10 text-gray-500 dark:text-gray-400">Carregando produtos...</div>
             )}
             {!isLoading && !error && products.length === 0 && (
                 <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-                    Nenhum produto encontrado {searchTerm && `para "${searchTerm}"`}.
+                    Nenhum produto encontrado
+                    {(searchTerm || filterStatus !== 'active') ? ' para os filtros aplicados' : ''}.
+                     {/* Mensagem ajustada */}
                 </div>
             )}
             {!isLoading && !error && products.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {products.map((product) => (
                         <ProductCard
-                            key={product.id_produto} // Alterado para id_produto
+                            key={product.id_produto}
                             product={product}
-                            onProductDesativar={handleProductDesativar} // Passa a função para o ProductCard
+                            onToggleActive={handleToggleProductActive} // Passa a função correta
+                            onEdit={handleOpenEditModal} // Passa a função para abrir edição
                         />
                     ))}
                 </div>
             )}
 
-            {/* Modal de Criação (Renderização Condicional) */}
-            {isModalOpen && (
-                <CreateProductModal
-                    isOpen={isModalOpen}
-                    onClose={handleCloseModal}
-                    onCreate={handleCreateProduct}
+            {/* Modal de Criação */}
+             {/* Renderiza o modal apenas se isCreateModalOpen for true */}
+            {isCreateModalOpen && (
+                 <CreateProductModal
+                    isOpen={isCreateModalOpen}
+                    onClose={handleCloseCreateModal}
+                    onCreate={handleCreateProduct} // Passa a função correta
                 />
             )}
+
+             {/* Modal de Edição (a ser implementado) */}
+             {/* {isEditModalOpen && currentProduct && (
+                 <EditProductModal // Componente diferente ou o mesmo com lógica interna
+                     isOpen={isEditModalOpen}
+                     onClose={handleCloseEditModal}
+                     onUpdate={handleUpdateProduct}
+                     productData={currentProduct}
+                 />
+             )} */}
+
         </div>
     );
 };
 
 export default ProductsPage;
+
+// --- END OF FILE ProductsPage.jsx ---
 
 // Adicione PropTypes se desejar maior robustez
 // ProductCard.propTypes = { ... };

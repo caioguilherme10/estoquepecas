@@ -85,6 +85,21 @@ Este é um sistema completo de gerenciamento de estoque desenvolvido com Electro
 - **Usuário**: admin
 - **Senha**: admin
 
+### Funcionalidades Prontas
+
+ - login
+ - adicionar usuario
+ - editar usuario
+ - listar usuarios
+ - ativar e desativar usuario
+ - so admin pode acessar o menu de usuarios
+ - adicionar produto
+ - listar produtos
+ - ativar e desativar produto
+
+### Funcionalidades em Desenvolvimento
+
+
 ---
 
 ## 🇬🇧 English
