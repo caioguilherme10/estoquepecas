@@ -5,6 +5,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
 const os = require('os'); // Mantenha para diagnóstico se precisar
 const Database = require('better-sqlite3');
+const bcrypt = require('bcrypt'); // Importa bcrypt
+
+const saltRounds = 10; // Fator de custo para o hash bcrypt
 
 let db;
 // Use __dirname se o preload.js estiver na mesma pasta que o main.js
@@ -12,7 +15,7 @@ let db;
 // Assumindo que está na raiz junto com o main.js por enquanto:
 // const dbPath = path.join(process.resourcesPath, 'estoque.db'); // Caminho mais robusto para produção
 // Para desenvolvimento, pode usar: const dbPath = path.join(__dirname, 'estoque.db');
-const dbPath = path.join(__dirname, 'estoque.db');
+const dbPath = path.join(__dirname, 'estoque2.db');
 console.log('[Preload] Database path target:', dbPath);
 
 
@@ -47,6 +50,45 @@ try {
     `);
     console.log('[Preload] Tabela "produtos" verificada/criada.');
 
+    // Tabela Usuários (NOVA ou Verifica Existência)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_usuario VARCHAR(50) NOT NULL UNIQUE,
+            senha_hash VARCHAR(255) NOT NULL,
+            nome_completo VARCHAR(100) NOT NULL,
+            permissao VARCHAR(20) NOT NULL DEFAULT 'vendedor', -- 'admin', 'vendedor'
+            ativo BOOLEAN NOT NULL DEFAULT TRUE,
+            data_cadastro DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+            data_ultimo_login DATETIME NULL
+        );
+    `);
+    console.log('[Preload] Tabela "usuarios" verificada/criada.');
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_usuarios_nome_usuario ON usuarios (nome_usuario);`);
+
+    // Garante que o usuário admin exista (apenas na primeira vez)
+    // A senha 'admin123' será hashada
+    const adminExists = db.prepare('SELECT 1 FROM usuarios WHERE nome_usuario = ?').get('admin');
+    if (!adminExists) {
+        console.log('[Preload] Usuário "admin" não encontrado. Criando usuário admin padrão...');
+        const adminPassword = 'admin'; // Senha padrão inicial
+        bcrypt.hash(adminPassword, saltRounds, (err, hash) => {
+            if (err) {
+                console.error('[Preload] Erro ao gerar hash para senha admin:', err);
+            } else {
+                try {
+                    db.prepare(`
+                        INSERT INTO usuarios (nome_usuario, senha_hash, nome_completo, permissao)
+                        VALUES (?, ?, ?, ?)
+                    `).run('admin', hash, 'Administrador', 'admin');
+                    console.log('[Preload] Usuário "admin" criado com senha padrão.');
+                } catch (insertErr) {
+                     console.error('[Preload] Erro ao inserir usuário admin padrão:', insertErr);
+                }
+            }
+        });
+    }
+
     // Tabela historico_compras
     db.exec(`
         CREATE TABLE IF NOT EXISTS historico_compras (
@@ -60,8 +102,9 @@ try {
             nome_fornecedor VARCHAR(255) NULL,
             numero_nota_fiscal VARCHAR(255) NULL,
             observacoes TEXT NULL,
-            usuario_compra INTEGER NULL,
+            id_usuario_compra INTEGER NULL,
             FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) ON DELETE RESTRICT -- Alterado para RESTRICT para segurança
+            FOREIGN KEY (id_usuario_compra) REFERENCES usuarios(id_usuario) ON DELETE SET NULL -- << NOVA FK
             -- FOREIGN KEY (id_fornecedor) REFERENCES fornecedores(id_fornecedor) -- Se tiver tabela de fornecedores
         );
     `);
@@ -80,8 +123,9 @@ try {
             nome_cliente VARCHAR(255) NULL,
             numero_recibo VARCHAR(255) NULL,
             observacoes TEXT NULL,
-            usuario_venda INTEGER NULL,
+            id_usuario_venda INTEGER NULL,
             FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) ON DELETE RESTRICT -- Alterado para RESTRICT para segurança
+            FOREIGN KEY (id_usuario_venda) REFERENCES usuarios(id_usuario) ON DELETE SET NULL -- << NOVA FK
             -- FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) -- Se tiver tabela de clientes
         );
     `);
@@ -129,6 +173,11 @@ try {
             getHistoricoVendas: () => Promise.reject(new Error("Banco de dados não conectado.")),
             getFilteredHistoricoCompras: () => Promise.reject(new Error("Banco de dados não conectado.")), // Nova
             getFilteredHistoricoVendas: () => Promise.reject(new Error("Banco de dados não conectado.")), // Nova
+            login: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            addUser: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            getAllUsers: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            updateUser: () => Promise.reject(new Error("Banco de dados não conectado.")),
+            toggleUserActive: () => Promise.reject(new Error("Banco de dados não conectado.")), // Nova
             closeDatabase: () => { console.warn("[Preload API] DB not connected, cannot close.") },
         });
         throw new Error("Database connection failed during setup."); // Interrompe a execução do try
@@ -350,61 +399,66 @@ try {
             }
         },
 
-        desativarProduto: (id) => {
-            // Código da função desativarProduto... (sem alterações)
+        desativarProduto: async (id) => { // Alterado para async/await
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            console.log(`[Preload API] desativarProduto called for ID: ${id}`);
+            console.log(`[Preload API] desativarProduto/ativarProduto called for ID: ${id}`);
             try {
-                const stmt = db.prepare('UPDATE produtos SET Ativo = FALSE WHERE id_produto = ?');
-                const info = stmt.run(id);
-                if (info.changes === 0) {
-                    console.warn(`[Preload API] desativarProduto: No rows updated for ID ${id}. Product might not exist.`);
-                    return Promise.reject(new Error(`Produto com ID ${id} não encontrado para desativar.`));
+                // Primeiro, verifica o estado atual
+                const stmtCheck = db.prepare('SELECT Ativo FROM produtos WHERE id_produto = ?');
+                const product = stmtCheck.get(id);
+
+                if (!product) {
+                    return Promise.reject(new Error(`Produto com ID ${id} não encontrado.`));
                 }
-                console.log(`[Preload API] desativarProduto successful for ID: ${id}. Rows changed: ${info.changes}`);
-                return Promise.resolve({ changes: info.changes, message: 'Produto desativado com sucesso!' });
+
+                const novoEstado = !product.Ativo; // Inverte o estado atual
+
+                const stmt = db.prepare('UPDATE produtos SET Ativo = ? WHERE id_produto = ?');
+                const info = stmt.run(novoEstado, id);
+
+                if (info.changes === 0) {
+                    // Isso não deveria acontecer se o produto foi encontrado antes, mas é uma segurança
+                    console.warn(`[Preload API] toggleAtivo: No rows updated for ID ${id}.`);
+                    return Promise.reject(new Error(`Produto com ID ${id} não encontrado para alterar estado.`));
+                }
+
+                const message = novoEstado ? 'Produto ativado com sucesso!' : 'Produto desativado com sucesso!';
+                console.log(`[Preload API] toggleAtivo successful for ID: ${id}. Rows changed: ${info.changes}. Novo estado: ${novoEstado}`);
+                return Promise.resolve({ changes: info.changes, message: message, novoEstado: novoEstado });
             } catch (err) {
-                console.error(`[Preload API] Error desativando product ID ${id}:`, err);
+                console.error(`[Preload API] Error toggling ativo for product ID ${id}:`, err);
                 return Promise.reject(err);
             }
         },
 
-        // --- Funções de Compra e Venda (addCompra/addVenda inalteradas) ---
-        addCompra: (compraData) => {
-            // Código da função addCompra... (sem alterações)
+        // --- Funções de Compra e Venda (ATUALIZADAS) ---
+        addCompra: (compraData) => { // Recebe compraData que agora inclui idUsuarioLogado
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            if (!compraData || !compraData.id_produto || !compraData.quantidade || !compraData.preco_unitario) {
-                return Promise.reject(new Error("Dados da compra incompletos (Produto, Quantidade, Preço Unitário)."));
+            if (!compraData || !compraData.id_produto || !compraData.quantidade || !compraData.preco_unitario || !compraData.idUsuarioLogado) { // Verifica idUsuarioLogado
+                return Promise.reject(new Error("Dados da compra incompletos (Produto, Qtd, Preço, Usuário)."));
             }
-            if (parseInt(compraData.quantidade, 10) <= 0) {
+             // ... (validações de quantidade existentes) ...
+             if (parseInt(compraData.quantidade, 10) <= 0) {
                  return Promise.reject(new Error("A quantidade da compra deve ser maior que zero."));
-            }
-
+             }
 
             const transaction = db.transaction(() => {
-                 // Verifica se o produto existe e está ativo
-                const productStmt = db.prepare('SELECT Ativo FROM produtos WHERE id_produto = ?');
-                const product = productStmt.get(compraData.id_produto);
-                if (!product) {
-                    throw new Error(`Produto com ID ${compraData.id_produto} não encontrado.`);
-                }
-                // Opcional: Permitir compra de produto inativo? Se não, descomente abaixo.
-                if (!product.Ativo) {
-                     throw new Error(`Produto com ID ${compraData.id_produto} está inativo e não pode receber compras.`);
-                }
+                 // ... (verificações de produto existentes) ...
+                 const productStmt = db.prepare('SELECT Ativo FROM produtos WHERE id_produto = ?');
+                 const product = productStmt.get(compraData.id_produto);
+                 if (!product) throw new Error(`Produto com ID ${compraData.id_produto} não encontrado.`);
+                 // if (!product.Ativo) throw new Error(`Produto com ID ${compraData.id_produto} está inativo.`); // Descomente se necessário
 
                 const stmt = db.prepare(`
                     INSERT INTO historico_compras (
                         id_produto, quantidade, preco_unitario, preco_total,
-                        numero_nota_fiscal, observacoes, usuario_compra, nome_fornecedor
+                        numero_nota_fiscal, observacoes, nome_fornecedor, id_usuario_compra -- Nome da coluna atualizado
                     ) VALUES (
                         @id_produto, @quantidade, @preco_unitario, @preco_total,
-                        @numero_nota_fiscal, @observacoes, @usuario_compra, @nome_fornecedor
+                        @numero_nota_fiscal, @observacoes, @nome_fornecedor, @id_usuario_compra -- Parâmetro atualizado
                     )
                 `);
-
                 const precoTotal = compraData.quantidade * compraData.preco_unitario;
-
                 const info = stmt.run({
                     id_produto: compraData.id_produto,
                     quantidade: compraData.quantidade,
@@ -412,64 +466,53 @@ try {
                     preco_total: precoTotal,
                     numero_nota_fiscal: compraData.numero_nota_fiscal || null,
                     observacoes: compraData.observacoes || null,
-                    usuario_compra: compraData.usuario_compra || null, // Adicionar lógica de usuário se necessário
-                    nome_fornecedor: compraData.nome_fornecedor || null
+                    nome_fornecedor: compraData.nome_fornecedor || null,
+                    id_usuario_compra: compraData.idUsuarioLogado // << USA O ID DO USUÁRIO LOGADO
                 });
 
-                 // Após a compra, atualizar o estoque
-                const stmtUpdateEstoque = db.prepare('UPDATE produtos SET QuantidadeEstoque = QuantidadeEstoque + ? WHERE id_produto = ?');
-                stmtUpdateEstoque.run(compraData.quantidade, compraData.id_produto);
-
-                return info.lastInsertRowid; // Retorna o ID da compra inserida
+                // Trigger cuida da atualização do estoque
+                return info.lastInsertRowid;
             });
 
             try {
                 const newCompraId = transaction();
-                console.log(`[Preload API] addCompra successful. Inserted Compra ID: ${newCompraId}`);
+                console.log(`[Preload API] addCompra successful by user ${compraData.idUsuarioLogado}. Inserted Compra ID: ${newCompraId}`);
                 return Promise.resolve({ id: newCompraId, message: 'Compra adicionada com sucesso!' });
             } catch (err) {
                 console.error("[Preload API] Error in addCompra:", err);
-                return Promise.reject(err); // Erro já formatado pela transaction
+                return Promise.reject(err);
             }
         },
 
-        addVenda: (vendaData) => {
-            // Código da função addVenda... (sem alterações, apenas validação de estoque)
+        addVenda: (vendaData) => { // Recebe vendaData que agora inclui idUsuarioLogado
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            if (!vendaData || !vendaData.id_produto || !vendaData.quantidade || !vendaData.preco_unitario) {
-                return Promise.reject(new Error("Dados da venda incompletos (Produto, Quantidade, Preço Unitário)."));
+            if (!vendaData || !vendaData.id_produto || !vendaData.quantidade || !vendaData.preco_unitario || !vendaData.idUsuarioLogado) { // Verifica idUsuarioLogado
+                return Promise.reject(new Error("Dados da venda incompletos (Produto, Qtd, Preço, Usuário)."));
             }
-             if (parseInt(vendaData.quantidade, 10) <= 0) {
+            // ... (validações de quantidade e estoque existentes) ...
+            if (parseInt(vendaData.quantidade, 10) <= 0) {
                  return Promise.reject(new Error("A quantidade da venda deve ser maior que zero."));
             }
 
-             const transaction = db.transaction(() => {
-                // Verifica se o produto existe, está ativo e tem estoque suficiente
-                const productStmt = db.prepare('SELECT QuantidadeEstoque, Ativo, NomeProduto FROM produtos WHERE id_produto = ?');
-                const product = productStmt.get(vendaData.id_produto);
-                if (!product) {
-                    throw new Error(`Produto com ID ${vendaData.id_produto} não encontrado.`);
-                }
-                 if (!product.Ativo) {
-                    throw new Error(`Produto '${product.NomeProduto}' (ID: ${vendaData.id_produto}) está inativo e não pode ser vendido.`);
-                }
-                if (product.QuantidadeEstoque < vendaData.quantidade) {
-                    throw new Error(`Estoque insuficiente para o produto '${product.NomeProduto}'. Disponível: ${product.QuantidadeEstoque}, Solicitado: ${vendaData.quantidade}.`);
-                }
 
+            const transaction = db.transaction(() => {
+                 // ... (verificações de produto e estoque existentes) ...
+                 const productStmt = db.prepare('SELECT QuantidadeEstoque, Ativo, NomeProduto FROM produtos WHERE id_produto = ?');
+                 const product = productStmt.get(vendaData.id_produto);
+                 if (!product) throw new Error(`Produto com ID ${vendaData.id_produto} não encontrado.`);
+                 if (!product.Ativo) throw new Error(`Produto '${product.NomeProduto}' está inativo.`);
+                 if (product.QuantidadeEstoque < vendaData.quantidade) throw new Error(`Estoque insuficiente para '${product.NomeProduto}'. Disp: ${product.QuantidadeEstoque}.`);
 
                 const stmt = db.prepare(`
                     INSERT INTO historico_vendas (
                         id_produto, quantidade, preco_unitario, preco_total,
-                        numero_recibo, observacoes, usuario_venda, nome_cliente
+                        numero_recibo, observacoes, nome_cliente, id_usuario_venda -- Nome da coluna atualizado
                     ) VALUES (
                         @id_produto, @quantidade, @preco_unitario, @preco_total,
-                        @numero_recibo, @observacoes, @usuario_venda, @nome_cliente
+                        @numero_recibo, @observacoes, @nome_cliente, @id_usuario_venda -- Parâmetro atualizado
                     )
                 `);
-
                 const precoTotal = vendaData.quantidade * vendaData.preco_unitario;
-
                 const info = stmt.run({
                     id_produto: vendaData.id_produto,
                     quantidade: vendaData.quantidade,
@@ -477,24 +520,21 @@ try {
                     preco_total: precoTotal,
                     numero_recibo: vendaData.numero_recibo || null,
                     observacoes: vendaData.observacoes || null,
-                    usuario_venda: vendaData.usuario_venda || null, // Adicionar lógica de usuário se necessário
-                    nome_cliente: vendaData.nome_cliente || null
+                    nome_cliente: vendaData.nome_cliente || null,
+                    id_usuario_venda: vendaData.idUsuarioLogado // << USA O ID DO USUÁRIO LOGADO
                 });
 
-                 // Após a venda, atualizar o estoque (diminuir)
-                const stmtUpdateEstoque = db.prepare('UPDATE produtos SET QuantidadeEstoque = QuantidadeEstoque - ? WHERE id_produto = ?');
-                stmtUpdateEstoque.run(vendaData.quantidade, vendaData.id_produto);
-
-                return info.lastInsertRowid; // Retorna o ID da venda inserida
+                // Trigger cuida da atualização do estoque
+                return info.lastInsertRowid;
             });
 
             try {
                 const newVendaId = transaction();
-                console.log(`[Preload API] addVenda successful. Inserted Venda ID: ${newVendaId}`);
+                console.log(`[Preload API] addVenda successful by user ${vendaData.idUsuarioLogado}. Inserted Venda ID: ${newVendaId}`);
                 return Promise.resolve({ id: newVendaId, message: 'Venda adicionada com sucesso!' });
             } catch (err) {
                 console.error("[Preload API] Error in addVenda:", err);
-                return Promise.reject(err); // Erro já formatado pela transaction
+                return Promise.reject(err);
             }
         },
 
@@ -563,107 +603,226 @@ try {
             }
         },
 
-        // --- NOVAS Funções de Histórico Filtrado ---
+        // --- Funções de Histórico (ATUALIZADAS para incluir nome do usuário) ---
         getFilteredHistoricoCompras: (filters = {}) => {
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             try {
                 const { nomeFornecedor, produtoId } = filters;
-                console.log(`[Preload API] getFilteredHistoricoCompras executing query with filters:`, filters);
-
                 let query = `
                     SELECT
-                        hc.id_compra,
-                        strftime('%d/%m/%Y %H:%M:%S', hc.data_compra) as data_compra_formatada,
-                        hc.quantidade,
-                        hc.preco_unitario,
-                        hc.preco_total,
-                        hc.numero_nota_fiscal,
-                        hc.observacoes,
-                        hc.nome_fornecedor,
-                        hc.usuario_compra,
-                        p.NomeProduto,
-                        p.CodigoFabricante
+                        hc.id_compra, strftime('%d/%m/%Y %H:%M:%S', hc.data_compra) as data_compra_formatada,
+                        hc.quantidade, hc.preco_unitario, hc.preco_total, hc.numero_nota_fiscal,
+                        hc.observacoes, hc.nome_fornecedor,
+                        p.NomeProduto, p.CodigoFabricante,
+                        u.nome_completo as nome_usuario_compra -- << JOIN com usuários
                     FROM historico_compras hc
                     JOIN produtos p ON hc.id_produto = p.id_produto
+                    LEFT JOIN usuarios u ON hc.id_usuario_compra = u.id_usuario -- << LEFT JOIN para não quebrar se usuário for NULL
                 `;
                 const params = [];
                 const conditions = [];
-
-                if (produtoId) {
-                    conditions.push('hc.id_produto = ?');
-                    params.push(produtoId);
-                }
-                if (nomeFornecedor) {
-                    conditions.push('hc.nome_fornecedor LIKE ?');
-                    params.push(`%${nomeFornecedor}%`);
-                }
-
-                if (conditions.length > 0) {
-                    query += ` WHERE ${conditions.join(' AND ')}`;
-                }
-
-                query += ' ORDER BY hc.data_compra DESC'; // Ordenar sempre
+                if (produtoId) { conditions.push('hc.id_produto = ?'); params.push(produtoId); }
+                if (nomeFornecedor) { conditions.push('hc.nome_fornecedor LIKE ?'); params.push(`%${nomeFornecedor}%`); }
+                if (conditions.length > 0) { query += ` WHERE ${conditions.join(' AND ')}`; }
+                query += ' ORDER BY hc.data_compra DESC';
 
                 const stmt = db.prepare(query);
                 const compras = stmt.all(params);
-                console.log(`[Preload API] getFilteredHistoricoCompras returning ${compras.length} records.`);
                 return Promise.resolve(compras);
-            } catch (err) {
-                console.error(`[Preload API] Error fetching filtered historico_compras:`, err);
-                return Promise.reject(err);
-            }
+            } catch (err) { /* ... */ return Promise.reject(err); }
         },
 
         getFilteredHistoricoVendas: (filters = {}) => {
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-             try {
-                const { nomeCliente, produtoId } = filters;
-                console.log(`[Preload API] getFilteredHistoricoVendas executing query with filters:`, filters);
+            try {
+               const { nomeCliente, produtoId } = filters;
+               let query = `
+                   SELECT
+                       hv.id_venda, strftime('%d/%m/%Y %H:%M:%S', hv.data_venda) as data_venda_formatada,
+                       hv.quantidade, hv.preco_unitario, hv.preco_total, hv.numero_recibo,
+                       hv.observacoes, hv.nome_cliente,
+                       p.NomeProduto, p.CodigoFabricante,
+                       u.nome_completo as nome_usuario_venda -- << JOIN com usuários
+                   FROM historico_vendas hv
+                   JOIN produtos p ON hv.id_produto = p.id_produto
+                   LEFT JOIN usuarios u ON hv.id_usuario_venda = u.id_usuario -- << LEFT JOIN
+               `;
+               const params = [];
+               const conditions = [];
+               if (produtoId) { conditions.push('hv.id_produto = ?'); params.push(produtoId); }
+               if (nomeCliente) { conditions.push('hv.nome_cliente LIKE ?'); params.push(`%${nomeCliente}%`); }
+               if (conditions.length > 0) { query += ` WHERE ${conditions.join(' AND ')}`; }
+               query += ' ORDER BY hv.data_venda DESC';
 
-                let query = `
-                    SELECT
-                        hv.id_venda,
-                        strftime('%d/%m/%Y %H:%M:%S', hv.data_venda) as data_venda_formatada,
-                        hv.quantidade,
-                        hv.preco_unitario,
-                        hv.preco_total,
-                        hv.numero_recibo,
-                        hv.observacoes,
-                        hv.nome_cliente,
-                        hv.usuario_venda,
-                        p.NomeProduto,
-                        p.CodigoFabricante
-                    FROM historico_vendas hv
-                    JOIN produtos p ON hv.id_produto = p.id_produto
-                `;
-                const params = [];
-                const conditions = [];
+               const stmt = db.prepare(query);
+               const vendas = stmt.all(params);
+               return Promise.resolve(vendas);
+            } catch (err) { /* ... */ return Promise.reject(err); }
+        },
 
-                if (produtoId) {
-                    conditions.push('hv.id_produto = ?');
-                    params.push(produtoId);
+        // --- NOVAS Funções de Autenticação e Usuário ---
+        login: async (username, password) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            console.log(`[Preload API] Login attempt for user: ${username}`);
+            try {
+                const stmt = db.prepare('SELECT id_usuario, nome_completo, senha_hash, permissao, ativo FROM usuarios WHERE nome_usuario = ?');
+                const user = stmt.get(username);
+
+                if (!user) {
+                    console.log(`[Preload API] Login failed: User ${username} not found.`);
+                    return Promise.reject(new Error("Usuário não encontrado."));
                 }
-                if (nomeCliente) {
-                    conditions.push('hv.nome_cliente LIKE ?');
-                    params.push(`%${nomeCliente}%`);
+
+                if (!user.ativo) {
+                     console.log(`[Preload API] Login failed: User ${username} is inactive.`);
+                     return Promise.reject(new Error("Usuário inativo."));
                 }
 
-                if (conditions.length > 0) {
-                    query += ` WHERE ${conditions.join(' AND ')}`;
+                // Compara a senha fornecida com o hash armazenado
+                const match = await bcrypt.compare(password, user.senha_hash);
+
+                if (match) {
+                    console.log(`[Preload API] Login successful for user: ${username}`);
+                    // Atualiza data_ultimo_login (sem esperar)
+                    db.prepare("UPDATE usuarios SET data_ultimo_login = strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE id_usuario = ?").run(user.id_usuario);
+                    // Retorna dados essenciais do usuário, NUNCA o hash da senha
+                    return Promise.resolve({
+                        id_usuario: user.id_usuario,
+                        nome_usuario: username, // Retorna o nome de usuário usado no login
+                        nome_completo: user.nome_completo,
+                        permissao: user.permissao
+                    });
+                } else {
+                    console.log(`[Preload API] Login failed: Incorrect password for user: ${username}`);
+                    return Promise.reject(new Error("Senha incorreta."));
                 }
-
-                query += ' ORDER BY hv.data_venda DESC'; // Ordenar sempre
-
-                const stmt = db.prepare(query);
-                const vendas = stmt.all(params);
-                console.log(`[Preload API] getFilteredHistoricoVendas returning ${vendas.length} records.`);
-                return Promise.resolve(vendas);
             } catch (err) {
-                console.error(`[Preload API] Error fetching filtered historico_vendas:`, err);
-                return Promise.reject(err);
+                console.error("[Preload API] Error during login:", err);
+                return Promise.reject(new Error(`Erro interno durante o login: ${err.message}`));
             }
         },
 
+        addUser: async (userData) => {
+             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+             if (!userData || !userData.nome_usuario || !userData.senha || !userData.nome_completo || !userData.permissao) {
+                 return Promise.reject(new Error("Dados incompletos para criar usuário."));
+             }
+             console.log(`[Preload API] Attempting to add user: ${userData.nome_usuario}`);
+             try {
+                 // Gera o hash da senha
+                 const hashedPassword = await bcrypt.hash(userData.senha, saltRounds);
+
+                 const stmt = db.prepare(`
+                     INSERT INTO usuarios (nome_usuario, senha_hash, nome_completo, permissao, ativo)
+                     VALUES (@nome_usuario, @senha_hash, @nome_completo, @permissao, @ativo)
+                 `);
+                 const info = stmt.run({
+                     nome_usuario: userData.nome_usuario,
+                     senha_hash: hashedPassword,
+                     nome_completo: userData.nome_completo,
+                     permissao: userData.permissao,
+                     ativo: userData.ativo !== undefined ? userData.ativo : true // Default true se não especificado
+                 });
+                 console.log(`[Preload API] User ${userData.nome_usuario} added successfully. ID: ${info.lastInsertRowid}`);
+                 return Promise.resolve({ id: info.lastInsertRowid, message: 'Usuário criado com sucesso!' });
+             } catch (err) {
+                 console.error("[Preload API] Error adding user:", err);
+                  if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+                     return Promise.reject(new Error(`O nome de usuário '${userData.nome_usuario}' já existe.`));
+                 }
+                 return Promise.reject(err);
+             }
+        },
+
+        getAllUsers: () => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            console.log(`[Preload API] Fetching all users...`);
+            try {
+                 // Nunca retornar senha_hash para o frontend
+                 const stmt = db.prepare('SELECT id_usuario, nome_usuario, nome_completo, permissao, ativo, data_cadastro, data_ultimo_login FROM usuarios ORDER BY nome_completo');
+                 const users = stmt.all();
+                 console.log(`[Preload API] Returning ${users.length} users.`);
+                 return Promise.resolve(users);
+             } catch (err) {
+                 console.error("[Preload API] Error fetching all users:", err);
+                 return Promise.reject(err);
+             }
+        },
+
+        updateUser: async (id, userData) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            if (!id || !userData) return Promise.reject(new Error("ID e dados do usuário são obrigatórios."));
+             console.log(`[Preload API] Attempting to update user ID: ${id}`);
+
+             // Campos que podem ser atualizados (exceto senha por enquanto)
+             const fields = [];
+             const params = { id_usuario: id };
+
+             if (userData.nome_completo !== undefined) { fields.push("nome_completo = @nome_completo"); params.nome_completo = userData.nome_completo; }
+             if (userData.permissao !== undefined) { fields.push("permissao = @permissao"); params.permissao = userData.permissao; }
+             if (userData.ativo !== undefined) { fields.push("ativo = @ativo"); params.ativo = userData.ativo; }
+              // Se uma nova senha foi fornecida, hasheia e atualiza
+             if (userData.senha) {
+                 console.log(`[Preload API] Updating password for user ID: ${id}`);
+                 try {
+                     const hashedPassword = await bcrypt.hash(userData.senha, saltRounds);
+                     fields.push("senha_hash = @senha_hash");
+                     params.senha_hash = hashedPassword;
+                 } catch(hashError) {
+                      console.error(`[Preload API] Error hashing new password for user ID ${id}:`, hashError);
+                      return Promise.reject(new Error("Erro ao processar nova senha."));
+                 }
+             }
+
+             if (fields.length === 0) {
+                 return Promise.reject(new Error("Nenhum dado fornecido para atualização."));
+             }
+
+             try {
+                 const query = `UPDATE usuarios SET ${fields.join(', ')} WHERE id_usuario = @id_usuario`;
+                 const stmt = db.prepare(query);
+                 const info = stmt.run(params);
+
+                 if (info.changes === 0) {
+                     return Promise.reject(new Error(`Usuário com ID ${id} não encontrado.`));
+                 }
+                 console.log(`[Preload API] User ID ${id} updated successfully.`);
+                 return Promise.resolve({ changes: info.changes, message: 'Usuário atualizado com sucesso!' });
+             } catch (err) {
+                  console.error(`[Preload API] Error updating user ID ${id}:`, err);
+                  if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' && err.message.includes('nome_usuario')) {
+                     // A checagem de nome de usuário único deveria ser feita antes se permitir alterar nome_usuario
+                     return Promise.reject(new Error(`O nome de usuário já está em uso por outro usuário.`));
+                 }
+                 return Promise.reject(err);
+             }
+        },
+
+        // Função para ativar/desativar usuário (simplificada)
+        toggleUserActive: (id) => {
+             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+             console.log(`[Preload API] Toggling active status for user ID: ${id}`);
+             try {
+                 // Pega o estado atual e inverte
+                 const currentState = db.prepare('SELECT ativo FROM usuarios WHERE id_usuario = ?').get(id);
+                 if (!currentState) {
+                     return Promise.reject(new Error(`Usuário com ID ${id} não encontrado.`));
+                 }
+                 const newState = !currentState.ativo;
+                 const stmt = db.prepare('UPDATE usuarios SET ativo = ? WHERE id_usuario = ?');
+                 const info = stmt.run(newState, id);
+
+                 if (info.changes === 0) {
+                    return Promise.reject(new Error(`Usuário com ID ${id} não encontrado para alterar status.`));
+                 }
+                 const message = newState ? 'Usuário ativado.' : 'Usuário desativado.';
+                 console.log(`[Preload API] User ID ${id} active status toggled to ${newState}.`);
+                 return Promise.resolve({ changes: info.changes, message, newState });
+             } catch (err) {
+                 console.error(`[Preload API] Error toggling user active status ID ${id}:`, err);
+                 return Promise.reject(err);
+             }
+        },
 
         // Função para fechar o DB ao sair
         closeDatabase: () => {

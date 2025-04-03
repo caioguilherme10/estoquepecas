@@ -1,10 +1,11 @@
 // src/components/layout/Navbar.jsx
 import React from 'react'; // Import React
-import { Bell, Menu, Moon, Settings, Sun } from 'lucide-react';
+import { Bell, Menu, Moon, Settings, Sun, LogOut } from 'lucide-react';
 // Import Link from react-router-dom instead of next/link
 import { Link } from 'react-router-dom';
 // Import PropTypes for prop validation (optional but recommended)
 import PropTypes from 'prop-types';
+import { useAuth } from '../../context/AuthContext';
 
 // Define as props que o Navbar espera receber do componente pai
 const Navbar = ({
@@ -13,6 +14,7 @@ const Navbar = ({
   isDarkMode,         // Estado vindo do pai
   toggleDarkMode,     // Função vinda do pai
 }) => {
+  const { user, logout } = useAuth();
   return (
     // Adiciona classes dark mode aqui se necessário, ou gerencie no Layout pai
     <nav className="flex justify-between items-center w-full mb-7 px-4 md:px-6 text-gray-700 dark:text-gray-200">
@@ -73,7 +75,16 @@ const Navbar = ({
               height={32}
               className="rounded-full object-cover"
             />
-            <span className="font-semibold hidden lg:inline">Usuário</span> {/* Esconde em telas menores */}
+            {/* Exibe o nome completo se logado, senão 'Visitante' */}
+            <span className="font-semibold hidden lg:inline">
+              {user ? user.nome_completo : 'Visitante'}
+            </span>
+            {/* Botão Logout */}
+            {user && ( // Mostra apenas se estiver logado
+              <button onClick={logout} title="Sair" className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                <LogOut className="cursor-pointer text-red-500 dark:text-red-400" size={22} />
+              </button>
+            )}
           </div>
         </div>
 

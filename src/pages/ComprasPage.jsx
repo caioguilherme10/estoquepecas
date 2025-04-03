@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 // Adicionada a prop onSaveSuccess
 const ComprasPage = ({ onSaveSuccess, isModal = false }) => {
@@ -17,6 +18,7 @@ const ComprasPage = ({ onSaveSuccess, isModal = false }) => {
     const [erro, setErro] = useState('');
     const [produtos, setProdutos] = useState([]);
     const [loadingProdutos, setLoadingProdutos] = useState(true); // Estado de loading
+    const { user } = useAuth();
 
     useEffect(() => {
         const fetchProdutos = async () => {
@@ -66,7 +68,8 @@ const ComprasPage = ({ onSaveSuccess, isModal = false }) => {
                 preco_unitario: preco,
                 numero_nota_fiscal: numeroNotaFiscal.trim() || null, // Envia null se vazio
                 observacoes: observacoes.trim() || null,
-                nome_fornecedor: nomeFornecedor.trim() || null
+                nome_fornecedor: nomeFornecedor.trim() || null,
+                idUsuarioLogado: user?.id_usuario
             };
 
             await window.api.addCompra(compraData);

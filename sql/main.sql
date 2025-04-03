@@ -41,8 +41,10 @@ CREATE TABLE historico_compras (
     nome_fornecedor VARCHAR(255) NULL, -- Nome do fornecedor (opcional)
     numero_nota_fiscal VARCHAR(255) NULL, -- Número da nota fiscal (opcional)
     observacoes TEXT NULL, -- Observações sobre a compra (opcional)
-    usuario_compra INTEGER NULL,  -- id do usuario que realizou a compra (opcional)
-    FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) -- Vincula ao produto
+    id_usuario_compra INTEGER NULL,  -- id do usuario que realizou a compra (opcional)
+    FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) ON DELETE RESTRICT, -- Vincula ao produto
+    -- Adicionada a Foreign Key para usuários
+    FOREIGN KEY (id_usuario_compra) REFERENCES usuarios(id_usuario) ON DELETE SET NULL -- Se o usuário for excluído, o histórico fica sem usuário associado (NULL)
     -- FOREIGN KEY (id_fornecedor) REFERENCES fornecedores(id_fornecedor) -- Se tiver tabela de fornecedores
 );
 
@@ -60,8 +62,9 @@ CREATE TABLE historico_vendas (
     nome_cliente VARCHAR(255) NULL, -- Nome do cliente (opcional)
     numero_recibo VARCHAR(255) NULL, -- Número do recibo/nota (opcional)
     observacoes TEXT NULL,  -- Observações sobre a venda (opcional)
-    usuario_venda INTEGER NULL, -- id do usuario que realizou a venda (opcional)
-    FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) -- Vincula ao produto
+    id_usuario_venda INTEGER NULL, -- id do usuario que realizou a venda (opcional)
+    FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) ON DELETE RESTRICT, -- Vincula ao produto
+    FOREIGN KEY (id_usuario_venda) REFERENCES usuarios(id_usuario) ON DELETE SET NULL -- Se o usuário for excluído, o histórico fica sem usuário associado (NULL)
     -- FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) -- Se tiver tabela de clientes
 );
 
@@ -91,3 +94,39 @@ BEGIN
       DataUltimaAtualizacao = strftime('%Y-%m-%d %H:%M:%S', 'now')
   WHERE id_produto = NEW.id_produto;
 END;
+
+-- Trigger para atualizar DataUltimaAtualizacao na tabela produtos em UPDATES
+CREATE TRIGGER IF NOT EXISTS update_product_timestamp
+AFTER UPDATE ON produtos
+FOR EACH ROW
+WHEN OLD.DataUltimaAtualizacao = NEW.DataUltimaAtualizacao -- Previne loop se o próprio trigger atualizar
+BEGIN
+    UPDATE produtos SET DataUltimaAtualizacao = strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE id_produto = OLD.id_produto;
+END;
+
+-- =============================================
+-- Tabela de Usuários
+-- =============================================
+CREATE TABLE IF NOT EXISTS usuarios (
+    id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome_usuario VARCHAR(50) NOT NULL UNIQUE,     -- Nome de login único (ex: 'admin', 'joao.silva')
+    senha_hash VARCHAR(255) NOT NULL,             -- Hash da senha (NUNCA armazene a senha em texto plano!)
+    nome_completo VARCHAR(100) NOT NULL,          -- Nome completo do usuário para exibição
+    permissao VARCHAR(20) NOT NULL DEFAULT 'vendedor', -- Nível de acesso (ex: 'admin', 'vendedor', 'estoquista')
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,             -- Indica se o usuário pode logar no sistema
+    data_cadastro DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')), -- Data de criação do usuário
+    data_ultimo_login DATETIME NULL                  -- Data do último acesso (atualizar via aplicação)
+    -- email VARCHAR(255) UNIQUE NULL,              -- Opcional: E-mail do usuário
+    -- telefone VARCHAR(20) NULL                    -- Opcional: Telefone do usuário
+);
+
+-- Índice para otimizar a busca por nome de usuário (login)
+CREATE INDEX IF NOT EXISTS idx_usuarios_nome_usuario ON usuarios (nome_usuario);
+
+-- Exemplo de Inserção de Usuário (A SENHA DEVE SER HASHADA PELA APLICAÇÃO!)
+-- O valor 'hash_seguro_da_senha_aqui' é apenas um placeholder.
+-- Use bibliotecas como bcrypt no seu backend Node.js/Electron para gerar o hash.
+INSERT INTO usuarios (nome_usuario, senha_hash, nome_completo, permissao, ativo)
+VALUES ('admin', '$2b$10$PlaceholderHashParaAdmin...........', 'Administrador Principal', 'admin', TRUE),
+('vendedor1', '$2b$10$PlaceholderHashParaVendedor1.......', 'Funcionário Vendas 01', 'vendedor', TRUE),
+('desativado', '$2b$10$PlaceholderHashParaDesativado....', 'Usuário Antigo', 'vendedor', FALSE); -- Exemplo de usuário inativo

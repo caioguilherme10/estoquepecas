@@ -14,6 +14,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 // Import PropTypes
 import PropTypes from 'prop-types';
+import { useAuth } from '../../context/AuthContext';
 
 // Componente interno para os links da sidebar
 const SidebarLink = ({ href, icon: Icon, label, isCollapsed }) => {
@@ -66,6 +67,8 @@ const Sidebar = ({ isCollapsed }) => { // Recebe apenas isCollapsed como prop ag
     ${isCollapsed ? 'w-16' : 'w-64'}
   `;
 
+  const { user } = useAuth();
+
   // TO-DO: Adicionar botão de toggle interno se quiser controlar pelo sidebar também
   // const toggleSidebar = () => { /* lógica para chamar a função do pai */ };
 
@@ -102,6 +105,9 @@ const Sidebar = ({ isCollapsed }) => { // Recebe apenas isCollapsed como prop ag
         <SidebarLink href="/historico/vendas" icon={Archive} label="Venda de Produtos" isCollapsed={isCollapsed} />
         <SidebarLink href="/products" icon={Clipboard} label="Produtos" isCollapsed={isCollapsed} />
         {/* Adicione outras rotas conforme necessário */}
+        {user?.permissao === 'admin' && (
+          <SidebarLink href="/users" icon={User} label="Usuários" isCollapsed={isCollapsed} />
+        )}
         {/* <SidebarLink href="/users" icon={User} label="Usuários" isCollapsed={isCollapsed} /> */}
         {/* <SidebarLink href="/expenses" icon={CircleDollarSign} label="Despesas" isCollapsed={isCollapsed} /> */}
         <SidebarLink href="/settings" icon={SlidersHorizontal} label="Configurações" isCollapsed={isCollapsed} />

@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 // Adicionada a prop onSaveSuccess
 const VendasPage = ({ onSaveSuccess, isModal = false }) => {
@@ -18,6 +19,7 @@ const VendasPage = ({ onSaveSuccess, isModal = false }) => {
     const [produtos, setProdutos] = useState([]);
     const [loadingProdutos, setLoadingProdutos] = useState(true); // Estado de loading
     const [produtoSelecionado, setProdutoSelecionado] = useState(null); // Para mostrar estoque e preço sugerido
+    const { user } = useAuth();
 
      useEffect(() => {
         const fetchProdutos = async () => {
@@ -88,7 +90,8 @@ const VendasPage = ({ onSaveSuccess, isModal = false }) => {
                 preco_unitario: preco,
                 numero_recibo: numeroRecibo.trim() || null,
                 observacoes: observacoes.trim() || null,
-                nome_cliente: nomeCliente.trim() || null
+                nome_cliente: nomeCliente.trim() || null,
+                idUsuarioLogado: user?.id_usuario
             };
 
             await window.api.addVenda(vendaData);

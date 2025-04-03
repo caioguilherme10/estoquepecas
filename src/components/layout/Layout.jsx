@@ -1,5 +1,6 @@
 // src/components/layout/Layout.jsx
 import React, { useState, useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import PropTypes from 'prop-types';
@@ -50,7 +51,7 @@ function Layout({ children }) { // Recebe o conteúdo da página como 'children'
 
         {/* Área de conteúdo principal com scroll */}
         <main className="flex-grow p-4 md:p-6 overflow-y-auto">
-          {children} {/* Renderiza a página atual aqui */}
+          <Outlet /> {/* Renderiza a rota filha correspondente aqui */}
         </main>
       </div>
     </div>
