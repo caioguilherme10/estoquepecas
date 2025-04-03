@@ -1,8 +1,9 @@
 // --- START OF FILE ProductsPage.jsx (MODIFICADO) ---
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, PlusCircle, Package, Edit, ToggleLeft, ToggleRight } from 'lucide-react'; // Adicionar ícones Toggle
+import { Search, PlusCircle, Package, Edit, ToggleLeft, ToggleRight, RotateCw } from 'lucide-react'; // Adicionar ícones Toggle
 import CreateProductModal from './CreateProductModal';
+import EditProductModal from './EditProductModal'; // *** 1. Importar o EditProductModal ***
 import PropTypes from 'prop-types'; // Boa prática
 
 // Componente ProductCard (com pequenas melhorias no botão Ativar/Desativar)
@@ -101,8 +102,8 @@ const ProductsPage = () => {
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(''); // Para feedback
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    // const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Estado para modal de edição (se usar um diferente)
-    // const [currentProduct, setCurrentProduct] = useState(null); // Para edição
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Estado para modal de edição (se usar um diferente)
+    const [currentProduct, setCurrentProduct] = useState(null); // Para edição
 
     // Função para buscar produtos (agora depende de term e status)
     const fetchProducts = useCallback(async (term, status) => {
@@ -182,14 +183,36 @@ const ProductsPage = () => {
 
     // Função para Modal de Edição (ainda não implementado, mas estrutura pronta)
     const handleOpenEditModal = (product) => {
-         // setCurrentProduct(product);
-         // setIsEditModalOpen(true);
-         alert(`Editar produto ID: ${product.id_produto} (Modal de Edição não implementado)`);
-         setError('');
-         setSuccessMessage('');
-     };
-     // const handleCloseEditModal = () => setIsEditModalOpen(false);
-     // const handleUpdateProduct = async (productData, productId) => { ... }
+        console.log("Abrindo modal de edição para:", product);
+        setCurrentProduct(product); // Define o produto atual
+        setIsEditModalOpen(true);    // Abre o modal de edição
+        setError('');
+        setSuccessMessage('');
+    };
+
+    const handleCloseEditModal = () => {
+        setIsEditModalOpen(false);
+        setCurrentProduct(null); // Limpa o produto atual ao fechar
+    };
+
+    const handleUpdateProduct = async (productId, updatedData) => {
+        // Esta função é passada para EditProductModal como 'onUpdate'
+        setError('');
+        setSuccessMessage('');
+        console.log(`[ProductsPage] Tentando atualizar produto ID: ${productId}`, updatedData);
+        try {
+            const result = await window.api.updateProduct(productId, updatedData);
+            setSuccessMessage(result.message || 'Produto atualizado com sucesso!');
+            fetchProducts(searchTerm, filterStatus); // Recarrega a lista
+            // handleCloseEditModal(); // O modal já fecha sozinho no sucesso via onUpdate->onClose
+            return Promise.resolve(); // Sinaliza sucesso para o modal
+        } catch (err) {
+            console.error("Erro ao atualizar produto:", err);
+            // Define o erro na página principal para visibilidade
+            setError(`Erro ao atualizar: ${err.message}`);
+            return Promise.reject(err); // Re-lança o erro para o modal lidar (ex: formErrors.submit)
+        }
+    };
 
     // Função para ativar/desativar produto
     const handleToggleProductActive = async (id) => {
@@ -293,15 +316,15 @@ const ProductsPage = () => {
                 />
             )}
 
-             {/* Modal de Edição (a ser implementado) */}
-             {/* {isEditModalOpen && currentProduct && (
-                 <EditProductModal // Componente diferente ou o mesmo com lógica interna
-                     isOpen={isEditModalOpen}
-                     onClose={handleCloseEditModal}
-                     onUpdate={handleUpdateProduct}
-                     productData={currentProduct}
-                 />
-             )} */}
+            {/* Modal de Edição (a ser implementado) */}
+            {isEditModalOpen && currentProduct && (
+                <EditProductModal // Componente diferente ou o mesmo com lógica interna
+                    isOpen={isEditModalOpen}
+                    onClose={handleCloseEditModal}
+                    onUpdate={handleUpdateProduct}
+                    productData={currentProduct}
+                />
+            )}
 
         </div>
     );

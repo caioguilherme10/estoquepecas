@@ -307,68 +307,100 @@ try {
             }
         },
 
-        updateProduct: (id, productData) => {
-             // Código da função updateProduct... (sem alterações, exceto checagem de duplicidade)
+        updateProduct: (id, productData) => { // Não precisa ser async se não usar await internamente, mas pode manter por consistência
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             if (!id || !productData) return Promise.reject(new Error("ID do produto e dados para atualização são obrigatórios."));
             console.log(`[Preload API] updateProduct called for ID: ${id} with data:`, productData);
 
-             const transaction = db.transaction(() => {
-                 // Verificar duplicidade de CodigoFabricante (exceto para o próprio ID)
-                const stmtCheckFab = db.prepare('SELECT id_produto FROM produtos WHERE CodigoFabricante = ? AND id_produto != ?');
-                if (productData.CodigoFabricante && stmtCheckFab.get(productData.CodigoFabricante, id)) {
-                    throw new Error(`Código do Fabricante '${productData.CodigoFabricante}' já pertence a outro produto.`);
-                }
-                 // Verificar duplicidade de CodigoBarras (exceto para o próprio ID)
-                const stmtCheckBar = db.prepare('SELECT id_produto FROM produtos WHERE CodigoBarras = ? AND id_produto != ?');
-                 if (productData.CodigoBarras && stmtCheckBar.get(productData.CodigoBarras, id)) {
-                    throw new Error(`Código de Barras '${productData.CodigoBarras}' já pertence a outro produto.`);
-                }
-
-                const stmt = db.prepare(`
-                    UPDATE produtos SET
-                        CodigoBarras = @CodigoBarras,
-                        CodigoFabricante = @CodigoFabricante,
-                        NomeProduto = @NomeProduto,
-                        Marca = @Marca,
-                        Descricao = @Descricao,
-                        Aplicacao = @Aplicacao,
-                        Preco = @Preco,
-                        EstoqueMinimo = @EstoqueMinimo,
-                        Localizacao = @Localizacao,
-                        Ativo = @Ativo
-                        /* DataUltimaAtualizacao será atualizada pelo trigger */
-                    WHERE id_produto = @id_produto
-                `);
-                const info = stmt.run({
-                    id_produto: id,
-                    CodigoBarras: productData.CodigoBarras || null,
-                    CodigoFabricante: productData.CodigoFabricante,
-                    NomeProduto: productData.NomeProduto,
-                    Marca: productData.Marca || null,
-                    Descricao: productData.Descricao || null,
-                    Aplicacao: productData.Aplicacao || null,
-                    Preco: parseFloat(productData.Preco || 0.0),
-                    EstoqueMinimo: parseInt(productData.EstoqueMinimo || 1, 10),
-                    Localizacao: productData.Localizacao || null,
-                    Ativo: productData.Ativo === false ? false : true
-                });
-                if (info.changes === 0) {
-                     // Lança um erro se nada foi alterado, pode ser que o ID não exista
-                    throw new Error(`Produto com ID ${id} não encontrado ou nenhum dado foi alterado.`);
-                }
-                return info.changes; // Retorna o número de linhas alteradas
-            });
-
             try {
-                const changes = transaction();
-                console.log(`[Preload API] updateProduct successful for ID: ${id}. Rows changed: ${changes}`);
-                return Promise.resolve({ changes: changes, message: 'Produto atualizado com sucesso!' });
+                const changes = db.transaction(() => { // Executa a transação e pega o retorno dela
+                    // **Melhoria: Verificar primeiro se o produto existe**
+                    const productCheckStmt = db.prepare('SELECT 1 FROM produtos WHERE id_produto = ?');
+                    const exists = productCheckStmt.get(id);
+                    if (!exists) {
+                        throw new Error(`Produto com ID ${id} não encontrado para atualização.`);
+                    }
+
+                    // Verificar duplicidade de CodigoFabricante (exceto para o próprio ID)
+                    const stmtCheckFab = db.prepare('SELECT id_produto FROM produtos WHERE CodigoFabricante = ? AND id_produto != ?');
+                    // Só checa se CodigoFabricante foi fornecido e não é vazio/nulo
+                    if (productData.CodigoFabricante && stmtCheckFab.get(productData.CodigoFabricante, id)) {
+                        throw new Error(`Código do Fabricante '${productData.CodigoFabricante}' já pertence a outro produto.`);
+                    }
+
+                    // Verificar duplicidade de CodigoBarras (exceto para o próprio ID)
+                    const stmtCheckBar = db.prepare('SELECT id_produto FROM produtos WHERE CodigoBarras = ? AND id_produto != ?');
+                    // Só checa se CodigoBarras foi fornecido e não é vazio/nulo
+                    if (productData.CodigoBarras && stmtCheckBar.get(productData.CodigoBarras, id)) {
+                        throw new Error(`Código de Barras '${productData.CodigoBarras}' já pertence a outro produto.`);
+                    }
+
+                    // *** CORREÇÃO: Converter 'Ativo' para inteiro ***
+                    // Define um valor padrão se não vier, ou usa o valor convertido
+                    const ativoInt = (productData.Ativo === undefined || productData.Ativo === null)
+                                    ? null // Ou 1 se o padrão for sempre true na edição? Decida a lógica. Assume que pode vir nulo.
+                                    : (productData.Ativo ? 1 : 0);
+
+
+                    const stmt = db.prepare(`
+                        UPDATE produtos SET
+                            CodigoBarras = @CodigoBarras,
+                            CodigoFabricante = @CodigoFabricante,
+                            NomeProduto = @NomeProduto,
+                            Marca = @Marca,
+                            Descricao = @Descricao,
+                            Aplicacao = @Aplicacao,
+                            Preco = @Preco,
+                            EstoqueMinimo = @EstoqueMinimo,
+                            Localizacao = @Localizacao,
+                            Ativo = @Ativo
+                            /* DataUltimaAtualizacao será atualizada pelo trigger */
+                        WHERE id_produto = @id_produto
+                    `);
+
+                    const params = {
+                        id_produto: id,
+                        CodigoBarras: productData.CodigoBarras || null,
+                        CodigoFabricante: productData.CodigoFabricante || null, // Permite null aqui também
+                        NomeProduto: productData.NomeProduto, // Assumindo que sempre vem (validado no front?)
+                        Marca: productData.Marca || null,
+                        Descricao: productData.Descricao || null,
+                        Aplicacao: productData.Aplicacao || null,
+                        Preco: parseFloat(productData.Preco || 0.0),
+                        EstoqueMinimo: parseInt(productData.EstoqueMinimo || 1, 10), // Garante inteiro
+                        Localizacao: productData.Localizacao || null,
+                        Ativo: ativoInt // *** USA O VALOR INTEIRO ***
+                    };
+
+                    console.log('[Preload API] Executing UPDATE with params:', params);
+                    const info = stmt.run(params);
+
+                    // Retorna o número de linhas alteradas pela transação
+                    return info.changes;
+                })(); // Executa a transação imediatamente
+
+                // **Melhoria: Tratar '0 changes' fora da transação**
+                if (changes > 0) {
+                    console.log(`[Preload API] updateProduct successful for ID: ${id}. Rows changed: ${changes}`);
+                    return Promise.resolve({ changes: changes, message: 'Produto atualizado com sucesso!' });
+                } else {
+                    // Se chegou aqui, a transação rodou, o produto existe, mas nada mudou
+                    console.log(`[Preload API] updateProduct for ID: ${id} completed, but no data was changed.`);
+                    return Promise.resolve({ changes: 0, message: 'Nenhum dado foi alterado.' });
+                }
+
             } catch (err) {
-                 console.error(`[Preload API] Error in updateProduct for ID ${id}:`, err);
-                 return Promise.reject(err); // O erro já vem formatado da transaction
+                 // Captura erros da transação (produto não encontrado, duplicidade, erro de DB)
+                 console.error(`[Preload API] Error in updateProduct transaction for ID ${id}:`, err);
+                 // Verifica se é erro de tipo (embora a correção deva prevenir)
+                  if (err instanceof TypeError && err.message.includes('SQLite3 can only bind')) {
+                     console.error("[Preload API] Binding error detail on update:", { id, productData });
+                     return Promise.reject(new Error(`Erro de tipo ao atualizar produto: ${err.message}`));
+                  }
+                 // Re-lança outros erros (incluindo os de duplicidade e 'não encontrado')
+                 return Promise.reject(err);
             }
-        },
+        }, // Fim de updateProduct
 
         deleteProduct: (id) => {
              // Código da função deleteProduct... (alterado para usar transaction e verificar RESTRICT)

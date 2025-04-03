@@ -94,11 +94,16 @@ Este é um sistema completo de gerenciamento de estoque desenvolvido com Electro
  - ativar e desativar usuario
  - so admin pode acessar o menu de usuarios
  - adicionar produto
+ - editar produto
  - listar produtos
  - ativar e desativar produto
+ - adicionar compra
+ - listar compras
 
 ### Funcionalidades em Desenvolvimento
 
+ - falta abilitar a ediçao do codigo do fabricande do produto
+ - falta implementar a cor vermelha quando o estoque for menor que o estoque minimo
 
 ---
 
