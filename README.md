@@ -5,6 +5,8 @@
 ### Descrição
 Este é um sistema completo de gerenciamento de estoque desenvolvido com Electron e React, projetado para pequenas e médias empresas que precisam controlar seu inventário de produtos, compras e vendas. O sistema oferece uma interface moderna e intuitiva, com suporte para modo claro e escuro, e funciona como uma aplicação desktop multiplataforma.
 
+Este projeto foi inteiramente desenvolvido na plataforma trae.ai, em conjunto com o modelo Google/Gemini-2.5-pro-exp-03-25:free. O sistema será implementado em uma oficina de motos de uma cidade com aproximadamente 15.000 habitantes, tendo como único custo o tempo de desenvolvimento, estimado em uma semana de trabalho.
+
 ### Funcionalidades Principais
 
 #### Gerenciamento de Produtos
@@ -97,13 +99,21 @@ Este é um sistema completo de gerenciamento de estoque desenvolvido com Electro
  - editar produto
  - listar produtos
  - ativar e desativar produto
+ - buscar por nome do produto
  - adicionar compra
  - listar compras
+ - buscar por nome do fornecedor na compra
+ - adicionar venda
+ - listar vendas
+ - buscar por nome do cliente na venda
 
 ### Funcionalidades em Desenvolvimento
 
  - falta abilitar a ediçao do codigo do fabricande do produto
- - falta implementar a cor vermelha quando o estoque for menor que o estoque minimo
+ - falta implementar a cor vermelha quando o estoque for menor que o estoque minimo, na tela de produtos
+ - fazer a venda com mais de um produto
+ - fazer a compra com mais de um produto
+ - fazer a tela de dashboard
 
 ---
 
@@ -111,6 +121,8 @@ Este é um sistema completo de gerenciamento de estoque desenvolvido com Electro
 
 ### Description
 This is a complete inventory management system developed with Electron and React, designed for small and medium businesses that need to control their product inventory, purchases, and sales. The system offers a modern and intuitive interface, with support for light and dark mode, and works as a cross-platform desktop application.
+
+This project was entirely developed on the trae.ai platform, in conjunction with the Google/Gemini-2.5-pro-exp-03-25:free model. The system will be implemented in a motorcycle repair shop in a town of approximately 15,000 inhabitants, with the only cost being development time, estimated at one week of work.
 
 ### Main Features
 
