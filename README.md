@@ -110,10 +110,10 @@ Este projeto foi inteiramente desenvolvido na plataforma trae.ai, em conjunto co
 ### Funcionalidades em Desenvolvimento
 
  - falta abilitar a ediçao do codigo do fabricande do produto
- - falta implementar a cor vermelha quando o estoque for menor que o estoque minimo, na tela de produtos
+ - não mostra o codigo de barras do produto na edicao do produto
  - fazer a venda com mais de um produto
  - fazer a compra com mais de um produto
- - fazer a tela de dashboard
+ - fazer a tela de configuração
 
 ---
 

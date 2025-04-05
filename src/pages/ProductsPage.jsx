@@ -8,8 +8,18 @@ import PropTypes from 'prop-types'; // Boa prática
 
 // Componente ProductCard (com pequenas melhorias no botão Ativar/Desativar)
 const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada prop onEdit
-    const formatCurrency = (value) => { /* ... (código existente) ... */ };
-    const getStockColor = (quantity, minStock) => { /* ... (código existente) ... */ };
+    // Função para formatar moeda (opcional)
+    const formatCurrency = (value) => {
+        if (typeof value !== 'number') return 'N/A';
+        return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+
+    // Determina a cor do estoque
+    const getStockColor = (quantity, minStock) => {
+        if (quantity <= 0) return 'text-red-600 dark:text-red-400';
+        if (minStock > 0 && quantity <= minStock) return 'text-yellow-600 dark:text-yellow-400';
+        return 'text-green-600 dark:text-green-400';
+    };
     const displayValue = (value, placeholder = '-') => value || placeholder;
 
     const handleToggleClick = () => {

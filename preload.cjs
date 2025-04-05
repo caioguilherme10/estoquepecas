@@ -720,6 +720,120 @@ try {
             } catch (err) { /* ... */ return Promise.reject(err); }
         },
 
+        getDashboardSummary: async (days = 30) => { // Padrão para os últimos 30 dias
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            console.log(`[Preload API] getDashboardSummary called for last ${days} days.`);
+            try {
+                const dateLimit = new Date();
+                dateLimit.setDate(dateLimit.getDate() - days);
+                const dateLimitISO = dateLimit.toISOString().split('T')[0] + ' 00:00:00'; // Formato YYYY-MM-DD HH:MM:SS
+
+                // Sumário de Vendas
+                const salesStmt = db.prepare(`
+                    SELECT
+                        COUNT(id_venda) as totalVendasCount,
+                        SUM(preco_total) as totalVendasValue
+                    FROM historico_vendas
+                    WHERE data_venda >= ?
+                `);
+                const salesSummary = salesStmt.get(dateLimitISO);
+
+                // Sumário de Compras
+                const purchasesStmt = db.prepare(`
+                    SELECT
+                        COUNT(id_compra) as totalComprasCount,
+                        SUM(preco_total) as totalComprasValue
+                    FROM historico_compras
+                    WHERE data_compra >= ?
+                `);
+                const purchasesSummary = purchasesStmt.get(dateLimitISO);
+
+                 // Contagem de Produtos Ativos e Abaixo do Mínimo
+                 const lowStockStmt = db.prepare(`
+                    SELECT COUNT(id_produto) as lowStockCount
+                    FROM produtos
+                    WHERE QuantidadeEstoque <= EstoqueMinimo AND Ativo = 1
+                 `);
+                 const lowStockSummary = lowStockStmt.get();
+
+                 const activeProductsStmt = db.prepare(`SELECT COUNT(id_produto) as activeProductsCount FROM produtos WHERE Ativo = 1`);
+                 const activeProductsSummary = activeProductsStmt.get();
+
+
+                const summary = {
+                    totalVendasCount: salesSummary?.totalVendasCount ?? 0,
+                    totalVendasValue: salesSummary?.totalVendasValue ?? 0,
+                    totalComprasCount: purchasesSummary?.totalComprasCount ?? 0,
+                    totalComprasValue: purchasesSummary?.totalComprasValue ?? 0,
+                    lowStockCount: lowStockSummary?.lowStockCount ?? 0,
+                    activeProductsCount: activeProductsSummary?.activeProductsCount ?? 0,
+                    periodDays: days
+                };
+                console.log("[Preload API] getDashboardSummary result:", summary);
+                return Promise.resolve(summary);
+
+            } catch (err) {
+                console.error("[Preload API] Error in getDashboardSummary:", err);
+                return Promise.reject(err);
+            }
+        },
+
+        getSalesDataForChart: async (days = 30) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+             console.log(`[Preload API] getSalesDataForChart called for last ${days} days.`);
+            try {
+                const dateLimit = new Date();
+                dateLimit.setDate(dateLimit.getDate() - days);
+                 const dateLimitISO = dateLimit.toISOString().split('T')[0] + ' 00:00:00';
+
+                // Agrupar por dia
+                const stmt = db.prepare(`
+                    SELECT
+                        strftime('%Y-%m-%d', data_venda) as date, -- Agrupa por dia
+                        SUM(preco_total) as total
+                    FROM historico_vendas
+                    WHERE data_venda >= ?
+                    GROUP BY date
+                    ORDER BY date ASC
+                `);
+                const results = stmt.all(dateLimitISO);
+                console.log(`[Preload API] getSalesDataForChart returning ${results.length} daily records.`);
+                return Promise.resolve(results); // Formato: [{ date: 'YYYY-MM-DD', total: 150.00 }, ...]
+
+            } catch (err) {
+                console.error("[Preload API] Error in getSalesDataForChart:", err);
+                return Promise.reject(err);
+            }
+        },
+
+         getPurchasesDataForChart: async (days = 30) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            console.log(`[Preload API] getPurchasesDataForChart called for last ${days} days.`);
+            try {
+                const dateLimit = new Date();
+                dateLimit.setDate(dateLimit.getDate() - days);
+                const dateLimitISO = dateLimit.toISOString().split('T')[0] + ' 00:00:00';
+
+                 // Agrupar por dia
+                const stmt = db.prepare(`
+                    SELECT
+                        strftime('%Y-%m-%d', data_compra) as date, -- Agrupa por dia
+                        SUM(preco_total) as total
+                    FROM historico_compras
+                    WHERE data_compra >= ?
+                    GROUP BY date
+                    ORDER BY date ASC
+                `);
+                const results = stmt.all(dateLimitISO);
+                 console.log(`[Preload API] getPurchasesDataForChart returning ${results.length} daily records.`);
+                return Promise.resolve(results); // Formato: [{ date: 'YYYY-MM-DD', total: 200.50 }, ...]
+
+            } catch (err) {
+                console.error("[Preload API] Error in getPurchasesDataForChart:", err);
+                return Promise.reject(err);
+            }
+        },
+
         // --- NOVAS Funções de Autenticação e Usuário ---
         login: async (username, password) => {
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));

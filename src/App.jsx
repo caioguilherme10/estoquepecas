@@ -13,9 +13,10 @@ import VendasPage from './pages/VendasPage';
 import HistoricoComprasPage from './pages/HistoricoComprasPage'; // Nova página
 import HistoricoVendasPage from './pages/HistoricoVendasPage'; // Nova página
 import UsersPage from './pages/UsersPage'; // << Importar a futura página de usuários
+import DashboardPage from './pages/DashboardPage'; // << Importar a futura página de usuários
 
 // Crie componentes placeholder para as páginas por enquanto
-const DashboardPage = () => <h1 className="text-xl font-bold dark:text-white">Dashboard</h1>;
+// const DashboardPage = () => <h1 className="text-xl font-bold dark:text-white">Dashboard</h1>;
 //const CompraPage = () => <h1 className="text-xl font-bold dark:text-white">Compra</h1>;
 //const VendaPage = () => <h1 className="text-xl font-bold dark:text-white">Venda</h1>;
 //const ProductsPage = () => <h1 className="text-xl font-bold dark:text-white">Produtos</h1>;
