@@ -191,7 +191,7 @@ try {
             console.log(`[Preload API] getProducts called with searchTerm: "${searchTerm}", statusFilter: "${statusFilter}"`); // Log do filtro
            try {
                let query = `
-                   SELECT id_produto, Marca, CodigoFabricante, NomeProduto, QuantidadeEstoque, Preco, Localizacao, EstoqueMinimo, Aplicacao, Ativo
+                   SELECT id_produto, Marca, CodigoBarras, CodigoFabricante, NomeProduto, QuantidadeEstoque, Preco, Localizacao, EstoqueMinimo, Aplicacao, Ativo
                    FROM produtos
                `;
                const params = [];

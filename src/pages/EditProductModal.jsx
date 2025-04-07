@@ -33,7 +33,8 @@ const EditProductModal = ({ isOpen, onClose, onUpdate, productData }) => {
         if (isOpen && productData) {
             setFormData({
                 CodigoFabricante: productData.CodigoFabricante || '',
-                CodigoBarras: productData.CodigoBarras || '',
+                // If the field name is different, use the correct one:
+                CodigoBarras: productData.codigo_barras || productData.codigoBarras || productData.CodigoBarras || '',
                 NomeProduto: productData.NomeProduto || '',
                 Marca: productData.Marca || '',
                 Descricao: productData.Descricao || '',
@@ -81,8 +82,8 @@ const EditProductModal = ({ isOpen, onClose, onUpdate, productData }) => {
     // Validação (similar à criação, mas pode ter regras diferentes se necessário)
     const validateForm = () => {
         const errors = {};
-        // Código do Fabricante geralmente não é editável, mas validamos se está presente
-        // if (!formData.CodigoFabricante) errors.CodigoFabricante = 'Código do Fabricante é obrigatório.';
+        // Uncomment this validation since the field is now editable
+        if (!formData.CodigoFabricante) errors.CodigoFabricante = 'Código do Fabricante é obrigatório.';
         if (!formData.NomeProduto) errors.NomeProduto = 'Nome do Produto é obrigatório.';
         if (formData.EstoqueMinimo < 0) errors.EstoqueMinimo = 'Estoque mínimo não pode ser negativo.';
         if (formData.Preco < 0) errors.Preco = 'Preço não pode ser negativo.';
@@ -161,9 +162,10 @@ const EditProductModal = ({ isOpen, onClose, onUpdate, productData }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label htmlFor="CodigoFabricante" className={labelCssStyles}>Código Fabricante</label>
-                                <input type="text" name="CodigoFabricante" value={formData.CodigoFabricante} onChange={handleChange} className={disabledInputCssStyles} required disabled title="Código do Fabricante não pode ser alterado." />
-                                {/*formErrors.CodigoFabricante && <p className={errorCss}>{formErrors.CodigoFabricante}</p>*/}
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Não editável.</p>
+                                <input type="text" name="CodigoFabricante" value={formData.CodigoFabricante} onChange={handleChange} 
+                                    className={inputCssStyles} required />
+                                {formErrors.CodigoFabricante && <p className={errorCss}>{formErrors.CodigoFabricante}</p>}
+                                {/* Removed the "Não editável" text and disabled attribute */}
                             </div>
                             <div>
                                 <label htmlFor="CodigoBarras" className={labelCssStyles}>Código Barras</label>

@@ -109,8 +109,7 @@ Este projeto foi inteiramente desenvolvido na plataforma trae.ai, em conjunto co
 
 ### Funcionalidades em Desenvolvimento
 
- - falta abilitar a ediçao do codigo do fabricande do produto
- - não mostra o codigo de barras do produto na edicao do produto
+ - fazer a mudança do preço ao fazer a compra
  - fazer a venda com mais de um produto
  - fazer a compra com mais de um produto
  - fazer a tela de configuração
