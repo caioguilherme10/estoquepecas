@@ -530,6 +530,50 @@ try {
                     id_usuario_compra: compraData.idUsuarioLogado // << USA O ID DO USUÁRIO LOGADO
                 });
 
+                // *** 3. ATUALIZA O PREÇO DE VENDA (Preco) SE ELE FOR MAIOR QUE PRECO DO PRODUTO ***
+                const produtoIdParaUpdate = parseInt(compraData.id_produto, 10);
+
+                if (isNaN(produtoIdParaUpdate) || isNaN(compraData.preco_unitario)) {
+                    // Isso não deveria acontecer devido às validações anteriores, mas é uma segurança
+                    console.error(`[Preload Transaction] Erro interno: ID do produto (${compraData.id_produto}) ou Preço Unitário (${compraData.preco_unitario}) inválido antes da atualização de preço.`);
+                    throw new Error("Erro interno ao preparar atualização de preço do produto.");
+                }
+
+                console.log(`[Preload Transaction] Preparando para atualizar preço do produto ${produtoIdParaUpdate}. Preço atual: ${product.Preco}, Preço da compra: ${compraData.preco_unitario}`);
+
+                // Tenta atualizar o preço
+                try {
+                    const stmtUpdatePrice = db.prepare(`
+                        UPDATE produtos
+                        SET Preco = @preco_unitario -- Define o preço de venda igual ao custo da compra
+                        WHERE id_produto = @id_produto
+                           AND Preco < @preco_unitario -- Condição: Só atualiza se o preço da compra for maior
+                    `);
+
+                    // **Passa os valores verificados e parseados**
+                    const priceUpdateInfo = stmtUpdatePrice.run({
+                        preco_unitario: compraData.preco_unitario, // Já é float validado
+                        id_produto: produtoIdParaUpdate  // Já é int validado
+                    });
+
+                    if (priceUpdateInfo.changes > 0) {
+                        console.log(`[Preload Transaction] Preço de venda do produto ${produtoIdParaUpdate} atualizado para ${compraData.preco_unitario} (era menor).`);
+                    } else {
+                        // Verifica se a condição (Preco < @preco_unitario) não foi atendida
+                        // ou se o preço já era igual
+                        console.log(`[Preload Transaction] Preço de venda do produto ${produtoIdParaUpdate} não atualizado (Preço atual: ${product.Preco} >= Preço compra: ${compraData.preco_unitario}).`);
+                    }
+                } catch(updatePriceError) {
+                    console.error(`[Preload Transaction] Erro ao executar UPDATE de preço para produto ${produtoIdParaUpdate}:`, updatePriceError);
+                    // Verifica se é erro de binding (embora improvável com as verificações)
+                    if (updatePriceError instanceof TypeError && updatePriceError.message.includes('SQLite3 can only bind')) {
+                        console.error(`[Preload Transaction] Detalhe do erro de binding na atualização de preço: ${compraData.preco_unitario} `);
+                        console.error(`[Preload Transaction] Detalhe do erro de binding na atualização de preço: ${produtoIdParaUpdate}`);
+                    }
+                    // Re-lança o erro para abortar a transação
+                    throw updatePriceError;
+                }
+
                 // Trigger cuida da atualização do estoque
                 return info.lastInsertRowid;
             });

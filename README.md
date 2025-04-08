@@ -109,7 +109,6 @@ Este projeto foi inteiramente desenvolvido na plataforma trae.ai, em conjunto co
 
 ### Funcionalidades em Desenvolvimento
 
- - fazer a mudança do preço ao fazer a compra
  - fazer a venda com mais de um produto
  - fazer a compra com mais de um produto
  - fazer a tela de configuração
