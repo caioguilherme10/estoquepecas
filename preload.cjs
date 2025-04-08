@@ -491,156 +491,183 @@ try {
             }
         }, // Fim da função desativarProduto/toggleProductActive
 
-        // --- Funções de Compra e Venda (ATUALIZADAS) ---
-        addCompra: (compraData) => { // Recebe compraData que agora inclui idUsuarioLogado
+        //O frontend continua enviando o mesmo payload { items: [...], ...informaçõesGerais }.
+        addCompra: (compraPayload) => {
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            if (!compraData || !compraData.id_produto || !compraData.quantidade || !compraData.preco_unitario || !compraData.idUsuarioLogado) { // Verifica idUsuarioLogado
-                return Promise.reject(new Error("Dados da compra incompletos (Produto, Qtd, Preço, Usuário)."));
+            if (!compraPayload || !Array.isArray(compraPayload.items) || compraPayload.items.length === 0 || !compraPayload.idUsuarioLogado) {
+                return Promise.reject(new Error("Dados da compra inválidos. É necessário um usuário e pelo menos um item."));
             }
-             // ... (validações de quantidade existentes) ...
-             if (parseInt(compraData.quantidade, 10) <= 0) {
-                 return Promise.reject(new Error("A quantidade da compra deve ser maior que zero."));
-             }
+            console.log(`[Preload API] addCompra (multi-item SEM id_evento) called by user ${compraPayload.idUsuarioLogado} with ${compraPayload.items.length} items.`);
 
-            const transaction = db.transaction(() => {
-                 // ... (verificações de produto existentes) ...
-                 const productStmt = db.prepare('SELECT Ativo FROM produtos WHERE id_produto = ?');
-                 const product = productStmt.get(compraData.id_produto);
-                 if (!product) throw new Error(`Produto com ID ${compraData.id_produto} não encontrado.`);
-                 // if (!product.Ativo) throw new Error(`Produto com ID ${compraData.id_produto} está inativo.`); // Descomente se necessário
+            // REMOVIDO: const eventoId = ...
 
-                const stmt = db.prepare(`
-                    INSERT INTO historico_compras (
-                        id_produto, quantidade, preco_unitario, preco_total,
-                        numero_nota_fiscal, observacoes, nome_fornecedor, id_usuario_compra -- Nome da coluna atualizado
-                    ) VALUES (
-                        @id_produto, @quantidade, @preco_unitario, @preco_total,
-                        @numero_nota_fiscal, @observacoes, @nome_fornecedor, @id_usuario_compra -- Parâmetro atualizado
-                    )
-                `);
-                const precoTotal = compraData.quantidade * compraData.preco_unitario;
-                const info = stmt.run({
-                    id_produto: compraData.id_produto,
-                    quantidade: compraData.quantidade,
-                    preco_unitario: compraData.preco_unitario,
-                    preco_total: precoTotal,
-                    numero_nota_fiscal: compraData.numero_nota_fiscal || null,
-                    observacoes: compraData.observacoes || null,
-                    nome_fornecedor: compraData.nome_fornecedor || null,
-                    id_usuario_compra: compraData.idUsuarioLogado // << USA O ID DO USUÁRIO LOGADO
-                });
+            // Prepara o statement FORA da transação para reutilização
+            const insertCompraItemStmt = db.prepare(`
+                INSERT INTO historico_compras (
+                    id_produto, -- REMOVIDO: id_evento
+                    quantidade, preco_unitario, preco_total,
+                    numero_nota_fiscal, observacoes, nome_fornecedor, id_usuario_compra
+                ) VALUES (
+                    @id_produto, -- REMOVIDO: @id_evento
+                    @quantidade, @preco_unitario, @preco_total,
+                    @numero_nota_fiscal, @observacoes, @nome_fornecedor, @id_usuario_compra
+                )
+            `);
 
-                // *** 3. ATUALIZA O PREÇO DE VENDA (Preco) SE ELE FOR MAIOR QUE PRECO DO PRODUTO ***
-                const produtoIdParaUpdate = parseInt(compraData.id_produto, 10);
+             const stmtUpdatePrice = db.prepare(`
+                 UPDATE produtos SET Preco = @preco_unitario
+                 WHERE id_produto = @id_produto AND Preco < @preco_unitario -- Sua lógica atual
+             `);
 
-                if (isNaN(produtoIdParaUpdate) || isNaN(compraData.preco_unitario)) {
-                    // Isso não deveria acontecer devido às validações anteriores, mas é uma segurança
-                    console.error(`[Preload Transaction] Erro interno: ID do produto (${compraData.id_produto}) ou Preço Unitário (${compraData.preco_unitario}) inválido antes da atualização de preço.`);
-                    throw new Error("Erro interno ao preparar atualização de preço do produto.");
-                }
 
-                console.log(`[Preload Transaction] Preparando para atualizar preço do produto ${produtoIdParaUpdate}. Preço atual: ${product.Preco}, Preço da compra: ${compraData.preco_unitario}`);
+            // *** A TRANSAÇÃO ÚNICA GARANTE ATOMICIDADE ***
+            const transaction = db.transaction((items, generalInfo) => {
+                const insertedIds = [];
+                let totalEventValue = 0;
 
-                // Tenta atualizar o preço
-                try {
-                    const stmtUpdatePrice = db.prepare(`
-                        UPDATE produtos
-                        SET Preco = @preco_unitario -- Define o preço de venda igual ao custo da compra
-                        WHERE id_produto = @id_produto
-                           AND Preco < @preco_unitario -- Condição: Só atualiza se o preço da compra for maior
-                    `);
+                for (const item of items) {
+                    // Validações (iguais)
+                    if (!item.id_produto || !item.quantidade || item.preco_unitario === undefined || item.preco_unitario === null) {
+                        throw new Error(`Item inválido: ${JSON.stringify(item)}. Dados essenciais faltando.`);
+                    }
+                    const qtd = parseInt(item.quantidade, 10);
+                    const precoUnit = parseFloat(item.preco_unitario);
+                    if (isNaN(qtd) || qtd <= 0) throw new Error(`Qtd inválida (${item.quantidade}) p/ prod ID ${item.id_produto}.`);
+                    if (isNaN(precoUnit) || precoUnit < 0) throw new Error(`Preço inválido (${item.preco_unitario}) p/ prod ID ${item.id_produto}.`);
 
-                    // **Passa os valores verificados e parseados**
-                    const priceUpdateInfo = stmtUpdatePrice.run({
-                        preco_unitario: compraData.preco_unitario, // Já é float validado
-                        id_produto: produtoIdParaUpdate  // Já é int validado
+                    const productCheck = db.prepare('SELECT Preco FROM produtos WHERE id_produto = ?').get(item.id_produto);
+                    if (!productCheck) throw new Error(`Produto ID ${item.id_produto} não encontrado.`);
+
+                    const precoTotalItem = qtd * precoUnit;
+                    totalEventValue += precoTotalItem;
+
+                    // Insere o item no histórico (SEM id_evento)
+                    const info = insertCompraItemStmt.run({
+                        id_produto: item.id_produto,
+                        // REMOVIDO: id_evento: eventoId,
+                        quantidade: qtd,
+                        preco_unitario: precoUnit,
+                        preco_total: precoTotalItem,
+                        numero_nota_fiscal: generalInfo.numero_nota_fiscal || null,
+                        observacoes: generalInfo.observacoes || null,
+                        nome_fornecedor: generalInfo.nome_fornecedor || null,
+                        id_usuario_compra: generalInfo.idUsuarioLogado
                     });
+                    insertedIds.push(info.lastInsertRowid);
 
-                    if (priceUpdateInfo.changes > 0) {
-                        console.log(`[Preload Transaction] Preço de venda do produto ${produtoIdParaUpdate} atualizado para ${compraData.preco_unitario} (era menor).`);
-                    } else {
-                        // Verifica se a condição (Preco < @preco_unitario) não foi atendida
-                        // ou se o preço já era igual
-                        console.log(`[Preload Transaction] Preço de venda do produto ${produtoIdParaUpdate} não atualizado (Preço atual: ${product.Preco} >= Preço compra: ${compraData.preco_unitario}).`);
-                    }
-                } catch(updatePriceError) {
-                    console.error(`[Preload Transaction] Erro ao executar UPDATE de preço para produto ${produtoIdParaUpdate}:`, updatePriceError);
-                    // Verifica se é erro de binding (embora improvável com as verificações)
-                    if (updatePriceError instanceof TypeError && updatePriceError.message.includes('SQLite3 can only bind')) {
-                        console.error(`[Preload Transaction] Detalhe do erro de binding na atualização de preço: ${compraData.preco_unitario} `);
-                        console.error(`[Preload Transaction] Detalhe do erro de binding na atualização de preço: ${produtoIdParaUpdate}`);
-                    }
-                    // Re-lança o erro para abortar a transação
-                    throw updatePriceError;
-                }
+                    // Atualiza Preco do produto (lógica mantida)
+                    stmtUpdatePrice.run({ preco_unitario: precoUnit, id_produto: item.id_produto });
 
-                // Trigger cuida da atualização do estoque
-                return info.lastInsertRowid;
-            });
+                    // Trigger do banco de dados DEVE cuidar da atualização do estoque
+                } // Fim do loop for
+
+                console.log(`[Preload Transaction] Compra (multi-item SEM id_evento) processada. Itens: ${insertedIds.length}`);
+                // Retorna apenas os IDs inseridos e o valor total
+                return { insertedIds, totalValue: totalEventValue };
+            }); // Fim da definição da transação
 
             try {
-                const newCompraId = transaction();
-                console.log(`[Preload API] addCompra successful by user ${compraData.idUsuarioLogado}. Inserted Compra ID: ${newCompraId}`);
-                return Promise.resolve({ id: newCompraId, message: 'Compra adicionada com sucesso!' });
-            } catch (err) {
-                console.error("[Preload API] Error in addCompra:", err);
-                return Promise.reject(err);
-            }
-        },
-
-        addVenda: (vendaData) => { // Recebe vendaData que agora inclui idUsuarioLogado
-            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
-            if (!vendaData || !vendaData.id_produto || !vendaData.quantidade || !vendaData.preco_unitario || !vendaData.idUsuarioLogado) { // Verifica idUsuarioLogado
-                return Promise.reject(new Error("Dados da venda incompletos (Produto, Qtd, Preço, Usuário)."));
-            }
-            // ... (validações de quantidade e estoque existentes) ...
-            if (parseInt(vendaData.quantidade, 10) <= 0) {
-                 return Promise.reject(new Error("A quantidade da venda deve ser maior que zero."));
-            }
-
-
-            const transaction = db.transaction(() => {
-                 // ... (verificações de produto e estoque existentes) ...
-                 const productStmt = db.prepare('SELECT QuantidadeEstoque, Ativo, NomeProduto FROM produtos WHERE id_produto = ?');
-                 const product = productStmt.get(vendaData.id_produto);
-                 if (!product) throw new Error(`Produto com ID ${vendaData.id_produto} não encontrado.`);
-                 if (!product.Ativo) throw new Error(`Produto '${product.NomeProduto}' está inativo.`);
-                 if (product.QuantidadeEstoque < vendaData.quantidade) throw new Error(`Estoque insuficiente para '${product.NomeProduto}'. Disp: ${product.QuantidadeEstoque}.`);
-
-                const stmt = db.prepare(`
-                    INSERT INTO historico_vendas (
-                        id_produto, quantidade, preco_unitario, preco_total,
-                        numero_recibo, observacoes, nome_cliente, id_usuario_venda -- Nome da coluna atualizado
-                    ) VALUES (
-                        @id_produto, @quantidade, @preco_unitario, @preco_total,
-                        @numero_recibo, @observacoes, @nome_cliente, @id_usuario_venda -- Parâmetro atualizado
-                    )
-                `);
-                const precoTotal = vendaData.quantidade * vendaData.preco_unitario;
-                const info = stmt.run({
-                    id_produto: vendaData.id_produto,
-                    quantidade: vendaData.quantidade,
-                    preco_unitario: vendaData.preco_unitario,
-                    preco_total: precoTotal,
-                    numero_recibo: vendaData.numero_recibo || null,
-                    observacoes: vendaData.observacoes || null,
-                    nome_cliente: vendaData.nome_cliente || null,
-                    id_usuario_venda: vendaData.idUsuarioLogado // << USA O ID DO USUÁRIO LOGADO
+                // Executa a transação
+                const result = transaction(compraPayload.items, compraPayload);
+                console.log(`[Preload API] addCompra (multi-item SEM id_evento) SUCCESS. Itens: ${result.insertedIds.length}`);
+                return Promise.resolve({
+                    message: `Compra (${result.insertedIds.length} itens) registrada com sucesso!`,
+                    // REMOVIDO: eventId: result.eventId,
+                    itemIds: result.insertedIds, // IDs individuais das linhas inseridas
+                    totalValue: result.totalValue
                 });
-
-                // Trigger cuida da atualização do estoque
-                return info.lastInsertRowid;
-            });
-
-            try {
-                const newVendaId = transaction();
-                console.log(`[Preload API] addVenda successful by user ${vendaData.idUsuarioLogado}. Inserted Venda ID: ${newVendaId}`);
-                return Promise.resolve({ id: newVendaId, message: 'Venda adicionada com sucesso!' });
             } catch (err) {
-                console.error("[Preload API] Error in addVenda:", err);
+                console.error("[Preload API] Error in addCompra (multi-item SEM id_evento) transaction - ROLLED BACK:", err);
                 return Promise.reject(err);
             }
-        },
+        }, // Fim de addCompra
+
+        addVenda: (vendaPayload) => {
+             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            if (!vendaPayload || !Array.isArray(vendaPayload.items) || vendaPayload.items.length === 0 || !vendaPayload.idUsuarioLogado) {
+                return Promise.reject(new Error("Dados da venda inválidos. É necessário um usuário e pelo menos um item."));
+            }
+            console.log(`[Preload API] addVenda (multi-item SEM id_evento) called by user ${vendaPayload.idUsuarioLogado} with ${vendaPayload.items.length} items.`);
+
+            // REMOVIDO: const eventoId = ...
+
+            // Prepara o statement FORA da transação
+            const insertVendaItemStmt = db.prepare(`
+                INSERT INTO historico_vendas (
+                    id_produto, -- REMOVIDO: id_evento
+                    quantidade, preco_unitario, preco_total,
+                    numero_recibo, observacoes, nome_cliente, id_usuario_venda
+                ) VALUES (
+                    @id_produto, -- REMOVIDO: @id_evento
+                    @quantidade, @preco_unitario, @preco_total,
+                    @numero_recibo, @observacoes, @nome_cliente, @id_usuario_venda
+                )
+            `);
+
+             const checkStockStmt = db.prepare('SELECT QuantidadeEstoque, Ativo, NomeProduto FROM produtos WHERE id_produto = ?');
+
+
+            // *** A TRANSAÇÃO ÚNICA GARANTE ATOMICIDADE ***
+            const transaction = db.transaction((items, generalInfo) => {
+                const insertedIds = [];
+                let totalEventValue = 0;
+
+                for (const item of items) {
+                    // Validações (iguais)
+                    if (!item.id_produto || !item.quantidade || item.preco_unitario === undefined || item.preco_unitario === null) {
+                       throw new Error(`Item inválido: ${JSON.stringify(item)}. Dados essenciais faltando.`);
+                   }
+                   const qtd = parseInt(item.quantidade, 10);
+                   const precoUnit = parseFloat(item.preco_unitario);
+                   if (isNaN(qtd) || qtd <= 0) throw new Error(`Qtd inválida (${item.quantidade}) p/ prod ID ${item.id_produto}.`);
+                   if (isNaN(precoUnit) || precoUnit < 0) throw new Error(`Preço inválido (${item.preco_unitario}) p/ prod ID ${item.id_produto}.`);
+
+                   // Verifica estoque (igual)
+                   const productCheck = checkStockStmt.get(item.id_produto); // Reutiliza statement preparado
+                   if (!productCheck) throw new Error(`Produto ID ${item.id_produto} não encontrado.`);
+                   if (!productCheck.Ativo) throw new Error(`Produto '${productCheck.NomeProduto}' inativo.`);
+                   if (productCheck.QuantidadeEstoque < qtd) throw new Error(`Estoque insuficiente p/ '${productCheck.NomeProduto}'. Disp: ${productCheck.QuantidadeEstoque}, Sol: ${qtd}.`);
+
+                    const precoTotalItem = qtd * precoUnit;
+                    totalEventValue += precoTotalItem;
+
+                    // Insere o item no histórico (SEM id_evento)
+                    const info = insertVendaItemStmt.run({
+                        id_produto: item.id_produto,
+                        // REMOVIDO: id_evento: eventoId,
+                        quantidade: qtd,
+                        preco_unitario: precoUnit,
+                        preco_total: precoTotalItem,
+                        numero_recibo: generalInfo.numero_recibo || null,
+                        observacoes: generalInfo.observacoes || null,
+                        nome_cliente: generalInfo.nome_cliente || null,
+                        id_usuario_venda: generalInfo.idUsuarioLogado
+                    });
+                    insertedIds.push(info.lastInsertRowid);
+
+                    // Trigger do banco de dados DEVE cuidar da baixa do estoque
+                } // Fim do loop for
+
+                 console.log(`[Preload Transaction] Venda (multi-item SEM id_evento) processada. Itens: ${insertedIds.length}`);
+                // Retorna apenas os IDs inseridos e o valor total
+                return { insertedIds, totalValue: totalEventValue };
+            }); // Fim da definição da transação
+
+            try {
+                // Executa a transação
+                const result = transaction(vendaPayload.items, vendaPayload);
+                 console.log(`[Preload API] addVenda (multi-item SEM id_evento) SUCCESS. Itens: ${result.insertedIds.length}`);
+                return Promise.resolve({
+                    message: `Venda (${result.insertedIds.length} itens) registrada com sucesso!`,
+                    // REMOVIDO: eventId: result.eventId,
+                    itemIds: result.insertedIds,
+                    totalValue: result.totalValue
+                });
+            } catch (err) {
+                 console.error("[Preload API] Error in addVenda (multi-item SEM id_evento) transaction - ROLLED BACK:", err);
+                return Promise.reject(err);
+            }
+        }, // Fim de addVenda
 
         // --- Funções de Histórico (getHistoricoCompras/Vendas para UM produto - mantidas) ---
         getHistoricoCompras: (productId) => {

@@ -3,6 +3,8 @@ import React from 'react'; // Import React
 import {
   Archive,
   CircleDollarSign,
+  PackagePlus,
+  PackageMinus,
   Clipboard,
   Layout,
   SlidersHorizontal,
@@ -101,8 +103,8 @@ const Sidebar = ({ isCollapsed }) => { // Recebe apenas isCollapsed como prop ag
       <nav className="flex-grow mt-4 overflow-y-auto"> {/* Adicionado overflow */}
         {/* Mapeia os links aqui */}
         <SidebarLink href="/dashboard" icon={Layout} label="Dashboard" isCollapsed={isCollapsed} />
-        <SidebarLink href="/historico/compras" icon={Archive} label="Compra de Produtos" isCollapsed={isCollapsed} />
-        <SidebarLink href="/historico/vendas" icon={Archive} label="Venda de Produtos" isCollapsed={isCollapsed} />
+        <SidebarLink href="/historico/compras" icon={PackagePlus} label="Compra de Produtos" isCollapsed={isCollapsed} />
+        <SidebarLink href="/historico/vendas" icon={PackageMinus} label="Venda de Produtos" isCollapsed={isCollapsed} />
         <SidebarLink href="/products" icon={Clipboard} label="Produtos" isCollapsed={isCollapsed} />
         {/* Adicione outras rotas conforme necessário */}
         {user?.permissao === 'admin' && (
