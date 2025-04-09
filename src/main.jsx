@@ -2,7 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import './index.css'; // Importa o CSS (mesmo que App.jsx não use Tailwind agora)
+import './index.css'; // Importa o CSS
 
 // Verifica se o elemento 'root' existe
 const rootElement = document.getElementById('root');

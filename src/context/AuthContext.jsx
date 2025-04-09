@@ -6,7 +6,6 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true); // Começa como true para verificar o estado inicial
-
     // Tentar carregar o usuário do localStorage na inicialização (opcional, mas melhora UX)
     useEffect(() => {
         const storedUser = localStorage.getItem('authUser');
@@ -20,7 +19,6 @@ export const AuthProvider = ({ children }) => {
         }
         setIsLoading(false); // Finaliza o carregamento inicial
     }, []);
-
     const login = async (username, password) => {
         setIsLoading(true);
         try {
@@ -37,21 +35,18 @@ export const AuthProvider = ({ children }) => {
             throw error; // Re-lança o erro para o componente de login tratar
         }
     };
-
     const logout = () => {
         setUser(null);
         localStorage.removeItem('authUser'); // Limpa o localStorage
          // Idealmente, você pode querer chamar window.api.logout se tiver alguma ação no backend (invalidar token, etc.)
         console.log("Usuário deslogado.");
     };
-
     const value = {
         user,
         isLoading, // Exporta isLoading para saber quando a verificação inicial terminou
         login,
         logout,
     };
-
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 

@@ -1,20 +1,7 @@
 // src/components/layout/Sidebar.jsx
-import React from 'react'; // Import React
-import {
-  Archive,
-  CircleDollarSign,
-  PackagePlus,
-  PackageMinus,
-  Clipboard,
-  Layout,
-  SlidersHorizontal,
-  User,
-  // LucideIcon, // Não precisa importar o tipo
-  // Menu, // Ícone Menu não é usado diretamente aqui
-} from 'lucide-react';
-// Use Link e useLocation de react-router-dom
+import React from 'react';
+import { PackagePlus, PackageMinus, Clipboard, Layout, SlidersHorizontal, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-// Import PropTypes
 import PropTypes from 'prop-types';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,12 +10,10 @@ const SidebarLink = ({ href, icon: Icon, label, isCollapsed }) => {
   // Usa useLocation para obter o pathname atual
   const location = useLocation();
   const pathname = location.pathname;
-
   // Lógica para verificar se o link está ativo
   // Considera '/' como '/dashboard' para a rota inicial
   const isActive =
     pathname === href || (pathname === "/" && href === "/dashboard");
-
   return (
     <Link to={href} title={isCollapsed ? label : undefined}> {/* Adiciona title quando colapsado */}
       <div
@@ -68,12 +53,9 @@ const Sidebar = ({ isCollapsed }) => { // Recebe apenas isCollapsed como prop ag
     transition-all duration-300 ease-in-out
     ${isCollapsed ? 'w-16' : 'w-64'}
   `;
-
   const { user } = useAuth();
-
   // TO-DO: Adicionar botão de toggle interno se quiser controlar pelo sidebar também
   // const toggleSidebar = () => { /* lógica para chamar a função do pai */ };
-
   return (
     <aside className={sidebarClassNames}>
       {/* TOP LOGO */}
@@ -98,7 +80,6 @@ const Sidebar = ({ isCollapsed }) => { // Recebe apenas isCollapsed como prop ag
           MeuEstoque
         </h1>
       </div>
-
       {/* LINKS */}
       <nav className="flex-grow mt-4 overflow-y-auto"> {/* Adicionado overflow */}
         {/* Mapeia os links aqui */}
@@ -106,18 +87,14 @@ const Sidebar = ({ isCollapsed }) => { // Recebe apenas isCollapsed como prop ag
         <SidebarLink href="/historico/compras" icon={PackagePlus} label="Compra de Produtos" isCollapsed={isCollapsed} />
         <SidebarLink href="/historico/vendas" icon={PackageMinus} label="Venda de Produtos" isCollapsed={isCollapsed} />
         <SidebarLink href="/products" icon={Clipboard} label="Produtos" isCollapsed={isCollapsed} />
-        {/* Adicione outras rotas conforme necessário */}
         {user?.permissao === 'admin' && (
           <SidebarLink href="/users" icon={User} label="Usuários" isCollapsed={isCollapsed} />
         )}
-        {/* <SidebarLink href="/users" icon={User} label="Usuários" isCollapsed={isCollapsed} /> */}
-        {/* <SidebarLink href="/expenses" icon={CircleDollarSign} label="Despesas" isCollapsed={isCollapsed} /> */}
         <SidebarLink href="/settings" icon={SlidersHorizontal} label="Configurações" isCollapsed={isCollapsed} />
       </nav>
-
       {/* FOOTER (Opcional) */}
       <div className={`border-t border-gray-200 dark:border-gray-700 p-4 ${isCollapsed ? 'hidden' : 'block'}`}>
-        <p className="text-center text-xs text-gray-500 dark:text-gray-400">© 2024 MeuEstoque</p>
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">© 2025 MeuEstoque</p>
       </div>
     </aside>
   );
@@ -128,6 +105,5 @@ Sidebar.propTypes = {
   isCollapsed: PropTypes.bool.isRequired,
   // toggleSidebar: PropTypes.func.isRequired, // Adicione se o botão de toggle estiver aqui
 };
-
 
 export default Sidebar;

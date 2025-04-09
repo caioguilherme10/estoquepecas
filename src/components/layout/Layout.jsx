@@ -13,9 +13,7 @@ function Layout({ children }) { // Recebe o conteúdo da página como 'children'
     // Ou verifica a preferência do sistema operacional
     return savedMode ? JSON.parse(savedMode) : window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
   });
-
   const toggleSidebar = () => setIsSidebarCollapsed(!isSidebarCollapsed);
-
   const toggleDarkMode = () => {
     setIsDarkMode(prevMode => {
       const newMode = !prevMode;
@@ -23,7 +21,6 @@ function Layout({ children }) { // Recebe o conteúdo da página como 'children'
       return newMode;
     });
   };
-
   // Aplica/remove classe 'dark' no elemento <html> quando isDarkMode muda
   useEffect(() => {
     if (isDarkMode) {
@@ -32,13 +29,11 @@ function Layout({ children }) { // Recebe o conteúdo da página como 'children'
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
-
   return (
     // Container principal que aplica dark mode e usa flex
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
       {/* Sidebar recebe o estado */}
       <Sidebar isCollapsed={isSidebarCollapsed} />
-
       {/* Container para Navbar e Conteúdo */}
       <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
         {/* Navbar recebe estados e funções */}
@@ -48,7 +43,6 @@ function Layout({ children }) { // Recebe o conteúdo da página como 'children'
           isDarkMode={isDarkMode}
           toggleDarkMode={toggleDarkMode}
         />
-
         {/* Área de conteúdo principal com scroll */}
         <main className="flex-grow p-4 md:p-6 overflow-y-auto">
           <Outlet /> {/* Renderiza a rota filha correspondente aqui */}
