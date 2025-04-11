@@ -1,8 +1,6 @@
 // src/pages/SettingsPage.jsx
 
 import React, { useState, useEffect } from 'react';
-// Removido: import Header from "@/app/(components)/Header"; // Não temos esse Header
-
 // Importar useAuth se formos vincular com o DarkMode do Layout
 import { useAuth } from '../context/AuthContext'; // Ajuste o caminho se necessário
 
@@ -29,62 +27,54 @@ const initialSettings = [
 
 const SettingsPage = () => {
   // Tenta pegar o estado inicial do dark mode do contexto, se disponível
-   // Nota: Se o dark mode é controlado *apenas* pelo Layout/AuthContext, não precisa de estado local aqui.
-   // Vamos assumir que queremos exibir o estado do contexto e permitir alterá-lo a partir daqui.
-   const { isDarkMode: isDarkModeGlobal, toggleDarkMode: toggleDarkModeGlobal } = useAuth ? useAuth() : { isDarkMode: false, toggleDarkMode: () => {} }; // Usa o contexto se disponível
-
-
+  // Nota: Se o dark mode é controlado *apenas* pelo Layout/AuthContext, não precisa de estado local aqui.
+  // Vamos assumir que queremos exibir o estado do contexto e permitir alterá-lo a partir daqui.
+  const { isDarkMode: isDarkModeGlobal, toggleDarkMode: toggleDarkModeGlobal } = useAuth ? useAuth() : { isDarkMode: false, toggleDarkMode: () => {} }; // Usa o contexto se disponível
   // Inicializa o estado local, buscando o valor real do dark mode global
   const [userSettings, setUserSettings] = useState(() =>
-      initialSettings.map(setting => {
-          if (setting.key === 'darkMode') {
-              return { ...setting, value: isDarkModeGlobal };
-          }
-          return setting;
-      })
+    initialSettings.map(setting => {
+      if (setting.key === 'darkMode') {
+        return { ...setting, value: isDarkModeGlobal };
+      }
+      return setting;
+    })
   );
-
-   // Efeito para sincronizar o estado local do dark mode com o global, se o global mudar
-   useEffect(() => {
+  // Efeito para sincronizar o estado local do dark mode com o global, se o global mudar
+  useEffect(() => {
     setUserSettings(currentSettings =>
       currentSettings.map(setting =>
         setting.key === 'darkMode' ? { ...setting, value: isDarkModeGlobal } : setting
       )
     );
   }, [isDarkModeGlobal]);
-
-
   // Handler para Toggles
   const handleToggleChange = (key) => {
     // Se for o dark mode, chama a função global para garantir consistência
     if (key === 'darkMode' && toggleDarkModeGlobal) {
-        toggleDarkModeGlobal();
-        // O useEffect acima atualizará o estado local 'userSettings'
+      toggleDarkModeGlobal();
+      // O useEffect acima atualizará o estado local 'userSettings'
     } else {
-        // Para outros toggles (ex: notificações), atualiza o estado local diretamente
-         setUserSettings(currentSettings =>
-            currentSettings.map(setting =>
-                 setting.key === key ? { ...setting, value: !setting.value } : setting
-             )
-         );
-         // TODO: Aqui você chamaria uma função para salvar essa configuração específica (ex: window.api.saveSetting(key, newValue))
-         console.log(`Setting ${key} toggled (local state only for now)`);
+      // Para outros toggles (ex: notificações), atualiza o estado local diretamente
+      setUserSettings(currentSettings =>
+        currentSettings.map(setting =>
+          setting.key === key ? { ...setting, value: !setting.value } : setting
+        )
+      );
+      // TODO: Aqui você chamaria uma função para salvar essa configuração específica (ex: window.api.saveSetting(key, newValue))
+      console.log(`Setting ${key} toggled (local state only for now)`);
     }
   };
-
   // Handler para Inputs de Texto
-   const handleTextChange = (key, newValue) => {
-        setUserSettings(currentSettings =>
-            currentSettings.map(setting =>
-                setting.key === key ? { ...setting, value: newValue } : setting
-            )
-        );
-        // TODO: Implementar debounce ou salvar ao perder foco/apertar Enter
-        // console.log(`Setting ${key} changed to ${newValue} (local state only)`);
-        // TODO: Chamar window.api.saveSetting(key, newValue)
-    };
-
-
+  const handleTextChange = (key, newValue) => {
+    setUserSettings(currentSettings =>
+      currentSettings.map(setting =>
+        setting.key === key ? { ...setting, value: newValue } : setting
+      )
+    );
+    // TODO: Implementar debounce ou salvar ao perder foco/apertar Enter
+    // console.log(`Setting ${key} changed to ${newValue} (local state only)`);
+    // TODO: Chamar window.api.saveSetting(key, newValue)
+  };
   return (
     // O Layout já fornece o container principal e dark mode
     // <div className="w-full dark:bg-gray-900"> {/* Container principal não necessário se dentro do Layout */}
@@ -93,9 +83,7 @@ const SettingsPage = () => {
       <h1 className="text-2xl font-semibold mb-6 text-gray-800 dark:text-gray-100">
         Configurações
       </h1>
-
       {/* TODO: Adicionar mensagens de sucesso/erro ao salvar configurações */}
-
       <div className="overflow-x-auto shadow-md sm:rounded-lg">
         {/* Correção: Sem espaço/newline entre <table> e <thead> */}
         <table className="min-w-full bg-white dark:bg-gray-800 rounded-lg">
@@ -142,9 +130,9 @@ const SettingsPage = () => {
                       value={String(setting.value)}
                       readOnly={setting.readOnly}
                       onChange={(e) => {
-                          if(!setting.readOnly) {
-                              handleTextChange(setting.key, e.target.value);
-                          }
+                        if(!setting.readOnly) {
+                          handleTextChange(setting.key, e.target.value);
+                        }
                       }}
                     />
                   )}
@@ -157,21 +145,20 @@ const SettingsPage = () => {
           {/* Fim da table */}
         </table>
       </div>
-
       <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md text-sm text-blue-700 dark:text-blue-200">
-          <p><strong>Observação:</strong> Estas configurações são exemplos e (exceto Modo Escuro) não são salvas permanentemente nesta versão. A integração com armazenamento (localStorage ou API) é necessária para persistência.</p>
+        <p><strong>Observação:</strong> Estas configurações são exemplos e (exceto Modo Escuro) não são salvas permanentemente nesta versão. A integração com armazenamento (localStorage ou API) é necessária para persistência.</p>
       </div>
-       {/* Botão Salvar (Opcional - se não salvar a cada mudança) */}
+      {/* Botão Salvar (Opcional - se não salvar a cada mudança) */}
       {/*
       <div className="mt-6 flex justify-end">
-          <button
-              // onClick={handleSaveChanges}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow"
-              >
-              Salvar Alterações
-          </button>
+        <button
+          // onClick={handleSaveChanges}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow"
+        >
+          Salvar Alterações
+        </button>
       </div>
-       */}
+      */}
     </>
     // </div>
   );

@@ -1,6 +1,6 @@
 // src/pages/DashboardPage.jsx
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, DollarSign, Package, AlertTriangle, CheckCircle, RotateCw } from 'lucide-react';
+import { ShoppingCart, DollarSign, AlertTriangle, CheckCircle, RotateCw } from 'lucide-react';
 import {
     ResponsiveContainer,
     LineChart,
@@ -13,13 +13,11 @@ import {
     Tooltip,
     Legend,
 } from 'recharts';
-
 // Função para formatar moeda
 const formatCurrency = (value) => {
     if (typeof value !== 'number') return 'R$ 0,00';
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
-
 // Função para formatar datas para o eixo X (ex: DD/MM)
 const formatDateForAxis = (dateString) => {
     if (!dateString || typeof dateString !== 'string') return '';
@@ -30,7 +28,6 @@ const formatDateForAxis = (dateString) => {
         return dateString; // Retorna original em caso de erro
     }
 };
-
 // Componente de Card de Sumário
 const SummaryCard = ({ title, value, icon: Icon, colorClass = 'text-blue-500', isLoading }) => (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex items-center space-x-4">
@@ -47,7 +44,6 @@ const SummaryCard = ({ title, value, icon: Icon, colorClass = 'text-blue-500', i
         </div>
     </div>
 );
-
 // Componente Principal do Dashboard
 const DashboardPage = () => {
     const [summaryData, setSummaryData] = useState(null);
@@ -57,7 +53,6 @@ const DashboardPage = () => {
     const [loadingCharts, setLoadingCharts] = useState(true);
     const [error, setError] = useState(null);
     const [periodDays, setPeriodDays] = useState(30); // Estado para controlar o período
-
     const fetchData = async (days) => {
         setLoadingSummary(true);
         setLoadingCharts(true);
@@ -80,11 +75,9 @@ const DashboardPage = () => {
             setLoadingCharts(false);
         }
     };
-
     useEffect(() => {
         fetchData(periodDays);
     }, [periodDays]); // Re-busca quando o período mudar
-
     // Formatar dados para o Tooltip do gráfico
     const renderCustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
@@ -92,17 +85,15 @@ const DashboardPage = () => {
                 <div className="bg-white dark:bg-gray-700 p-2 border border-gray-300 dark:border-gray-600 rounded shadow text-sm">
                     <p className="label font-semibold dark:text-gray-100">{`Data: ${formatDateForAxis(label)}`}</p>
                     {payload.map((entry, index) => (
-                         <p key={`item-${index}`} style={{ color: entry.color }}>
+                        <p key={`item-${index}`} style={{ color: entry.color }}>
                             {`${entry.name}: ${formatCurrency(entry.value)}`}
-                         </p>
+                        </p>
                     ))}
                 </div>
             );
         }
         return null;
     };
-
-
     return (
         <div className="container mx-auto px-4 py-6 dark:text-gray-100 space-y-6">
             {/* Cabeçalho e Seletor de Período */}
@@ -110,7 +101,7 @@ const DashboardPage = () => {
                 <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
                     Dashboard
                 </h1>
-                 <div className='flex items-center gap-2'>
+                <div className='flex items-center gap-2'>
                     <label htmlFor="periodSelect" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Período:
                     </label>
@@ -125,24 +116,21 @@ const DashboardPage = () => {
                         <option value={30}>Últimos 30 dias</option>
                         <option value={90}>Últimos 90 dias</option>
                     </select>
-                      <button
+                    <button
                         onClick={() => fetchData(periodDays)}
                         disabled={loadingSummary || loadingCharts}
                         title="Recarregar Dados"
                         className="p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
-                      >
+                    >
                         <RotateCw size={16} className={(loadingSummary || loadingCharts) ? 'animate-spin' : ''} />
                     </button>
                 </div>
             </div>
-
-
             {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
                     {error}
                 </div>
             )}
-
             {/* Grid de Sumários */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 <SummaryCard
@@ -152,7 +140,7 @@ const DashboardPage = () => {
                     colorClass="text-green-500"
                     isLoading={loadingSummary}
                 />
-                 <SummaryCard
+                <SummaryCard
                     title={`Nº Vendas (${periodDays} dias)`}
                     value={summaryData?.totalVendasCount?.toLocaleString('pt-BR') ?? '0'}
                     icon={ShoppingCart}
@@ -166,7 +154,7 @@ const DashboardPage = () => {
                     colorClass="text-blue-500"
                     isLoading={loadingSummary}
                 />
-                 <SummaryCard
+                <SummaryCard
                     title="Produtos Ativos"
                     value={summaryData?.activeProductsCount?.toLocaleString('pt-BR') ?? '0'}
                     icon={CheckCircle}
@@ -181,16 +169,15 @@ const DashboardPage = () => {
                     isLoading={loadingSummary}
                 />
             </div>
-
             {/* Gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Gráfico de Vendas */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                     <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">Vendas Diárias ({periodDays} dias)</h3>
                     {loadingCharts ? (
-                         <div className="flex justify-center items-center h-60">
-                             <RotateCw className="animate-spin h-8 w-8 text-blue-500"/>
-                         </div>
+                        <div className="flex justify-center items-center h-60">
+                            <RotateCw className="animate-spin h-8 w-8 text-blue-500"/>
+                        </div>
                     ) : salesChartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height={300}>
                             <LineChart data={salesChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
@@ -203,60 +190,59 @@ const DashboardPage = () => {
                                     tickLine={{ stroke: '#6B7280' }}
                                 />
                                 <YAxis
-                                     tickFormatter={(value) => `R$${value.toLocaleString('pt-BR')}`}
-                                     tick={{ fill: '#9CA3AF', fontSize: 12 }}
-                                     axisLine={{ stroke: '#6B7280' }}
-                                     tickLine={{ stroke: '#6B7280' }}
-                                     width={80} // Ajuste largura para caber R$
-                                 />
+                                    tickFormatter={(value) => `R$${value.toLocaleString('pt-BR')}`}
+                                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                                    axisLine={{ stroke: '#6B7280' }}
+                                    tickLine={{ stroke: '#6B7280' }}
+                                    width={80} // Ajuste largura para caber R$
+                                />
                                 <Tooltip content={renderCustomTooltip} />
                                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
                                 <Line
-                                     type="monotone"
-                                     dataKey="total"
-                                     name="Vendas"
-                                     stroke="#10B981" // Verde
-                                     strokeWidth={2}
-                                     dot={{ r: 3 }}
-                                     activeDot={{ r: 6 }}
+                                    type="monotone"
+                                    dataKey="total"
+                                    name="Vendas"
+                                    stroke="#10B981" // Verde
+                                    strokeWidth={2}
+                                    dot={{ r: 3 }}
+                                    activeDot={{ r: 6 }}
                                 />
                             </LineChart>
                         </ResponsiveContainer>
                     ) : (
-                         <div className="flex justify-center items-center h-60 text-gray-500 dark:text-gray-400">
+                        <div className="flex justify-center items-center h-60 text-gray-500 dark:text-gray-400">
                             Sem dados de vendas para o período.
-                         </div>
+                        </div>
                     )}
                 </div>
-
                 {/* Gráfico de Compras */}
-                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                     <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">Compras Diárias ({periodDays} dias)</h3>
-                     {loadingCharts ? (
-                         <div className="flex justify-center items-center h-60">
+                    {loadingCharts ? (
+                        <div className="flex justify-center items-center h-60">
                             <RotateCw className="animate-spin h-8 w-8 text-blue-500"/>
-                         </div>
-                     ) : purchasesChartData.length > 0 ? (
+                        </div>
+                    ) : purchasesChartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height={300}>
                             {/* Pode usar BarChart ou LineChart */}
                             <BarChart data={purchasesChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                                 <CartesianGrid strokeDasharray="3 3" stroke="#4B5563" />
-                                 <XAxis
+                                <CartesianGrid strokeDasharray="3 3" stroke="#4B5563" />
+                                <XAxis
                                     dataKey="date"
                                     tickFormatter={formatDateForAxis}
                                     tick={{ fill: '#9CA3AF', fontSize: 12 }}
                                     axisLine={{ stroke: '#6B7280' }}
                                     tickLine={{ stroke: '#6B7280' }}
                                 />
-                                 <YAxis
-                                     tickFormatter={(value) => `R$${value.toLocaleString('pt-BR')}`}
-                                     tick={{ fill: '#9CA3AF', fontSize: 12 }}
-                                     axisLine={{ stroke: '#6B7280' }}
-                                     tickLine={{ stroke: '#6B7280' }}
-                                     width={80}
-                                 />
-                                 <Tooltip content={renderCustomTooltip} />
-                                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
+                                <YAxis
+                                    tickFormatter={(value) => `R$${value.toLocaleString('pt-BR')}`}
+                                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                                    axisLine={{ stroke: '#6B7280' }}
+                                    tickLine={{ stroke: '#6B7280' }}
+                                    width={80}
+                                />
+                                <Tooltip content={renderCustomTooltip} />
+                                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
                                 <Bar
                                     dataKey="total"
                                     name="Compras"
@@ -265,15 +251,13 @@ const DashboardPage = () => {
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
-                         <div className="flex justify-center items-center h-60 text-gray-500 dark:text-gray-400">
-                             Sem dados de compras para o período.
-                         </div>
-                     )}
+                        <div className="flex justify-center items-center h-60 text-gray-500 dark:text-gray-400">
+                            Sem dados de compras para o período.
+                        </div>
+                    )}
                 </div>
             </div>
-
-             {/* Outras seções podem ser adicionadas aqui, como Produtos com Estoque Baixo */}
-
+            {/* Outras seções podem ser adicionadas aqui, como Produtos com Estoque Baixo */}
         </div>
     );
 };

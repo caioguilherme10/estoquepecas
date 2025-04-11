@@ -1,9 +1,8 @@
 // src/pages/HistoricoComprasPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeftCircle, PlusCircle, Search, RotateCw, X } from 'lucide-react';
-import Modal from '../components/Modal'; // Importa o Modal
-import ComprasPage from './ComprasPage'; // Importa a página de Compras para o Modal
+import { PlusCircle, Search, RotateCw, X } from 'lucide-react';
+import Modal from '../components/Modal';
+import ComprasPage from './ComprasPage';
 
 const HistoricoComprasPage = () => {
     const [historico, setHistorico] = useState([]);
@@ -14,7 +13,6 @@ const HistoricoComprasPage = () => {
     const [loadingProdutos, setLoadingProdutos] = useState(true);
     const [erro, setErro] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
-
     // Função para buscar o histórico filtrado
     const fetchHistorico = useCallback(async () => {
         setLoading(true);
@@ -37,7 +35,6 @@ const HistoricoComprasPage = () => {
             setLoading(false);
         }
     }, [filtroNomeFornecedor, filtroProdutoId]); // Dependências do useCallback
-
     // Função para buscar produtos (apenas uma vez)
     const fetchProdutos = useCallback(async () => {
         setLoadingProdutos(true);
@@ -51,42 +48,32 @@ const HistoricoComprasPage = () => {
             setLoadingProdutos(false);
         }
     }, []); // Sem dependências, executa só uma vez
-
     // Efeito para buscar produtos no mount
     useEffect(() => {
         fetchProdutos();
     }, [fetchProdutos]);
-
     // Efeito para buscar histórico no mount e quando filtros mudam
     useEffect(() => {
         fetchHistorico();
     }, [fetchHistorico]); // fetchHistorico já inclui os filtros como dependência
-
     const handleLimparFiltros = () => {
         setFiltroNomeFornecedor('');
         setFiltroProdutoId('');
         // O useEffect [fetchHistorico] vai disparar a busca novamente
     };
-
     const handleNovaCompraSalva = () => {
         setIsModalOpen(false); // Fecha o modal
         fetchHistorico(); // Atualiza a lista
     };
-
     const formatCurrency = (value) => {
         if (typeof value !== 'number') {
             return 'N/A';
         }
         return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     };
-
     return (
         <div className="container mx-auto p-4 dark:text-gray-100">
-            {/*<Link to="/" className="inline-flex items-center mb-4 text-blue-500 hover:text-blue-700">
-                <ArrowLeftCircle className="mr-2 w-5 h-5" /> Voltar
-            </Link>*/}
             <h1 className="text-2xl font-semibold mb-6 text-gray-800 dark:text-gray-100">Histórico de Compras</h1>
-
             {/* Barra de Filtros e Ações */}
             <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow">
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
@@ -109,7 +96,6 @@ const HistoricoComprasPage = () => {
                             </div>
                         </div>
                     </div>
-
                     {/* Filtro Produto */}
                     <div className="md:col-span-1 lg:col-span-1">
                          <label htmlFor="filtroProduto" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -130,7 +116,6 @@ const HistoricoComprasPage = () => {
                             ))}
                         </select>
                     </div>
-
                     {/* Botões de Ação */}
                     <div className="md:col-span-1 lg:col-span-2 flex flex-wrap gap-2 justify-start md:justify-end">
                         <button
@@ -157,10 +142,8 @@ const HistoricoComprasPage = () => {
                     </div>
                 </div>
             </div>
-
             {/* Mensagem de Erro */}
             {erro && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{erro}</div>}
-
             {/* Tabela de Histórico */}
             <div className="shadow overflow-hidden border-b border-gray-200 dark:border-gray-700 sm:rounded-lg">
                 <div className="overflow-x-auto">
@@ -211,8 +194,7 @@ const HistoricoComprasPage = () => {
                     </table>
                 </div>
             </div>
-
-             {/* Modal para Nova Compra */}
+            {/* Modal para Nova Compra */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}

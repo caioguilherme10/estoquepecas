@@ -1,9 +1,8 @@
 // src/pages/HistoricoVendasPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeftCircle, PlusCircle, Search, RotateCw, X } from 'lucide-react';
-import Modal from '../components/Modal'; // Importa o Modal
-import VendasPage from './VendasPage'; // Importa a página de Vendas para o Modal
+import { PlusCircle, Search, RotateCw, X } from 'lucide-react';
+import Modal from '../components/Modal';
+import VendasPage from './VendasPage';
 
 const HistoricoVendasPage = () => {
     const [historico, setHistorico] = useState([]);
@@ -14,7 +13,6 @@ const HistoricoVendasPage = () => {
     const [loadingProdutos, setLoadingProdutos] = useState(true);
     const [erro, setErro] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
-
     // Função para buscar o histórico filtrado
     const fetchHistorico = useCallback(async () => {
         setLoading(true);
@@ -37,7 +35,6 @@ const HistoricoVendasPage = () => {
             setLoading(false);
         }
     }, [filtroNomeCliente, filtroProdutoId]); // Dependências do useCallback
-
     // Função para buscar produtos (apenas uma vez)
     const fetchProdutos = useCallback(async () => {
         setLoadingProdutos(true);
@@ -51,43 +48,33 @@ const HistoricoVendasPage = () => {
             setLoadingProdutos(false);
         }
     }, []); // Sem dependências, executa só uma vez
-
     // Efeito para buscar produtos no mount
     useEffect(() => {
         fetchProdutos();
     }, [fetchProdutos]);
-
     // Efeito para buscar histórico no mount e quando filtros mudam
     useEffect(() => {
         fetchHistorico();
     }, [fetchHistorico]); // fetchHistorico já inclui os filtros como dependência
-
     const handleLimparFiltros = () => {
         setFiltroNomeCliente('');
         setFiltroProdutoId('');
         // O useEffect [fetchHistorico] vai disparar a busca novamente
     };
-
     const handleNovaVendaSalva = () => {
         setIsModalOpen(false); // Fecha o modal
         fetchHistorico(); // Atualiza a lista
     };
-
-     const formatCurrency = (value) => {
+    const formatCurrency = (value) => {
         if (typeof value !== 'number') {
             return 'N/A';
         }
         return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     };
-
     return (
         <div className="container mx-auto p-4 dark:text-gray-100">
-            {/*<Link to="/" className="inline-flex items-center mb-4 text-blue-500 hover:text-blue-700">
-                <ArrowLeftCircle className="mr-2 w-5 h-5" /> Voltar
-            </Link>*/}
             <h1 className="text-2xl font-semibold mb-6 text-gray-800 dark:text-gray-100">Histórico de Vendas</h1>
-
-             {/* Barra de Filtros e Ações */}
+            {/* Barra de Filtros e Ações */}
             <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow">
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
                     {/* Filtro Nome Cliente */}
@@ -95,7 +82,7 @@ const HistoricoVendasPage = () => {
                         <label htmlFor="filtroCliente" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Cliente
                         </label>
-                         <div className="relative">
+                        <div className="relative">
                             <input
                                 type="text"
                                 id="filtroCliente"
@@ -109,10 +96,9 @@ const HistoricoVendasPage = () => {
                             </div>
                         </div>
                     </div>
-
                     {/* Filtro Produto */}
                     <div className="md:col-span-1 lg:col-span-1">
-                         <label htmlFor="filtroProduto" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label htmlFor="filtroProduto" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Produto
                         </label>
                         <select
@@ -130,10 +116,9 @@ const HistoricoVendasPage = () => {
                             ))}
                         </select>
                     </div>
-
                     {/* Botões de Ação */}
                     <div className="md:col-span-1 lg:col-span-2 flex flex-wrap gap-2 justify-start md:justify-end">
-                         <button
+                        <button
                             onClick={handleLimparFiltros}
                             title="Limpar filtros e recarregar"
                             className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -148,7 +133,7 @@ const HistoricoVendasPage = () => {
                         >
                             <RotateCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Recarregar
                         </button>
-                         <button
+                        <button
                             onClick={() => setIsModalOpen(true)}
                             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
@@ -157,14 +142,11 @@ const HistoricoVendasPage = () => {
                     </div>
                 </div>
             </div>
-
-
             {/* Mensagem de Erro */}
             {erro && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{erro}</div>}
-
             {/* Tabela de Histórico */}
             <div className="shadow overflow-hidden border-b border-gray-200 dark:border-gray-700 sm:rounded-lg">
-                 <div className="overflow-x-auto">
+                <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700">
                             <tr>
@@ -204,7 +186,7 @@ const HistoricoVendasPage = () => {
                                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100 text-right">{formatCurrency(venda.preco_total)}</td>
                                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{venda.nome_cliente || '-'}</td>
                                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{venda.numero_recibo || '-'}</td>
-                                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title={venda.observacoes || ''}>{venda.observacoes || '-'}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title={venda.observacoes || ''}>{venda.observacoes || '-'}</td>
                                     </tr>
                                 ))
                             )}
@@ -212,8 +194,7 @@ const HistoricoVendasPage = () => {
                     </table>
                  </div>
             </div>
-
-             {/* Modal para Nova Venda */}
+            {/* Modal para Nova Venda */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}

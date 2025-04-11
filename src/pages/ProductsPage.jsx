@@ -1,11 +1,10 @@
-// --- START OF FILE ProductsPage.jsx (MODIFICADO) ---
+// --- START OF FILE ProductsPage.jsx ---
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, PlusCircle, Package, Edit, ToggleLeft, ToggleRight, RotateCw } from 'lucide-react'; // Adicionar ícones Toggle
+import { Search, PlusCircle, Package, Edit, ToggleLeft, ToggleRight } from 'lucide-react';
 import CreateProductModal from './CreateProductModal';
-import EditProductModal from './EditProductModal'; // *** 1. Importar o EditProductModal ***
-import PropTypes from 'prop-types'; // Boa prática
-
+import EditProductModal from './EditProductModal';
+import PropTypes from 'prop-types';
 // Componente ProductCard (com pequenas melhorias no botão Ativar/Desativar)
 const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada prop onEdit
     // Função para formatar moeda (opcional)
@@ -13,7 +12,6 @@ const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada pro
         if (typeof value !== 'number') return 'N/A';
         return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     };
-
     // Determina a cor do estoque
     const getStockColor = (quantity, minStock) => {
         if (quantity <= 0) return 'text-red-600 dark:text-red-400';
@@ -21,34 +19,30 @@ const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada pro
         return 'text-green-600 dark:text-green-400';
     };
     const displayValue = (value, placeholder = '-') => value || placeholder;
-
     const handleToggleClick = () => {
         onToggleActive(product.id_produto);
     };
-
     const handleEditClick = () => {
         onEdit(product); // Passa o produto inteiro para edição
     };
-
     // Determina a cor e o texto do botão de status
     const isActive = product.Ativo ?? true; // Assume ativo se for null/undefined (embora não deveria ser)
     const statusButtonClass = isActive
         ? "bg-yellow-500 hover:bg-yellow-600 text-white" // Amarelo para Desativar
         : "bg-green-500 hover:bg-green-600 text-white"; // Verde para Ativar
     const statusButtonIcon = isActive ? <ToggleLeft size={14} className="mr-1" /> : <ToggleRight size={14} className="mr-1" />;
-
     return (
         <div className={`border border-gray-200 dark:border-gray-700 shadow rounded-lg bg-white dark:bg-gray-800 flex flex-col transition hover:shadow-md overflow-hidden ${!isActive ? 'opacity-60' : ''}`}>
-             {/* ... (Imagem Placeholder e Conteúdo do Card - código existente) ... */}
-             <div className="bg-gray-100 dark:bg-gray-700 h-32 flex items-center justify-center flex-shrink-0 relative">
+            {/* ... (Imagem Placeholder e Conteúdo do Card - código existente) ... */}
+            <div className="bg-gray-100 dark:bg-gray-700 h-32 flex items-center justify-center flex-shrink-0 relative">
                 <Package size={48} className="text-gray-400 dark:text-gray-500" />
-                 {!isActive && (
+                {!isActive && (
                     <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">
                         Inativo
                     </span>
-                 )}
+                )}
             </div>
-             <div className="p-4 flex-grow flex flex-col justify-between">
+            <div className="p-4 flex-grow flex flex-col justify-between">
                 <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
                         {displayValue(product.Marca)}
@@ -63,7 +57,7 @@ const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada pro
                         <span className="font-medium">Local:</span> {displayValue(product.Localizacao)}
                     </p>
                 </div>
-                 <div>
+                <div>
                     <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-1 text-right">
                         {formatCurrency(product.Preco)}
                     </p>
@@ -73,7 +67,6 @@ const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada pro
                     </p>
                 </div>
             </div>
-
             {/* Botões de Ação */}
             <div className="p-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-2">
                 <button
@@ -101,8 +94,6 @@ ProductCard.propTypes = {
     onToggleActive: PropTypes.func.isRequired, // Renomeado de onProductDesativar
     onEdit: PropTypes.func.isRequired,
 };
-
-
 // Componente principal da página
 const ProductsPage = () => {
     const [products, setProducts] = useState([]);
@@ -114,14 +105,12 @@ const ProductsPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Estado para modal de edição (se usar um diferente)
     const [currentProduct, setCurrentProduct] = useState(null); // Para edição
-
     // Função para buscar produtos (agora depende de term e status)
     const fetchProducts = useCallback(async (term, status) => {
         setIsLoading(true);
         setError(null);
         setSuccessMessage(''); // Limpa mensagens
         console.log(`[ProductsPage] Buscando produtos com termo: "${term}", status: "${status}"`);
-
         if (!window.api || typeof window.api.getProducts !== 'function') {
             // ... (tratamento de erro da API existente) ...
              console.error('[ProductsPage] window.api.getProducts não está definida!');
@@ -129,7 +118,6 @@ const ProductsPage = () => {
             setIsLoading(false);
             return;
         }
-
         try {
             // *** CHAMA A API COM O FILTRO DE STATUS ***
             const result = await window.api.getProducts(term, status);
@@ -144,19 +132,15 @@ const ProductsPage = () => {
             setIsLoading(false);
         }
     }, []); // useCallback ainda não depende de estado diretamente
-
     // Efeito para buscar produtos (agora depende de searchTerm e filterStatus)
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
             // *** PASSA OS DOIS FILTROS ***
             fetchProducts(searchTerm, filterStatus);
         }, 300);
-
         return () => clearTimeout(delayDebounceFn);
         // *** ATUALIZA AS DEPENDÊNCIAS DO useEffect ***
     }, [searchTerm, filterStatus, fetchProducts]); // Re-executa quando busca ou filtro mudam
-
-
     // Limpa mensagem de sucesso após alguns segundos
     useEffect(() => {
         if (successMessage) {
@@ -164,8 +148,6 @@ const ProductsPage = () => {
             return () => clearTimeout(timer);
         }
     }, [successMessage]);
-
-
     // Funções para Modal de Criação
     const handleOpenCreateModal = () => {
         // setCurrentProduct(null); // Se usar um único modal
@@ -174,7 +156,6 @@ const ProductsPage = () => {
         setSuccessMessage('');
     };
     const handleCloseCreateModal = () => setIsCreateModalOpen(false);
-
     const handleCreateProduct = async (productData) => {
         setError('');
         setSuccessMessage('');
@@ -190,7 +171,6 @@ const ProductsPage = () => {
             return Promise.reject(err); // Re-lança para o modal, se ele tratar tbm
         }
     };
-
     // Função para Modal de Edição (ainda não implementado, mas estrutura pronta)
     const handleOpenEditModal = (product) => {
         console.log("Abrindo modal de edição para:", product);
@@ -199,12 +179,10 @@ const ProductsPage = () => {
         setError('');
         setSuccessMessage('');
     };
-
     const handleCloseEditModal = () => {
         setIsEditModalOpen(false);
         setCurrentProduct(null); // Limpa o produto atual ao fechar
     };
-
     const handleUpdateProduct = async (productId, updatedData) => {
         // Esta função é passada para EditProductModal como 'onUpdate'
         setError('');
@@ -223,7 +201,6 @@ const ProductsPage = () => {
             return Promise.reject(err); // Re-lança o erro para o modal lidar (ex: formErrors.submit)
         }
     };
-
     // Função para ativar/desativar produto
     const handleToggleProductActive = async (id) => {
         setError('');
@@ -240,7 +217,6 @@ const ProductsPage = () => {
             setError(`Erro ao alterar status: ${err.message}`);
         }
     };
-
     return (
         <div className="container mx-auto px-4 py-6 dark:text-gray-100">
             {/* Cabeçalho da Página e Ações */}
@@ -286,12 +262,9 @@ const ProductsPage = () => {
                     </button>
                 </div>
             </div>
-
-             {/* Mensagens de Erro e Sucesso */}
+            {/* Mensagens de Erro e Sucesso */}
             {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
             {successMessage && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">{successMessage}</div>}
-
-
             {/* Grid de Produtos */}
             {isLoading && (
                 <div className="text-center py-10 text-gray-500 dark:text-gray-400">Carregando produtos...</div>
@@ -300,7 +273,7 @@ const ProductsPage = () => {
                 <div className="text-center py-10 text-gray-500 dark:text-gray-400">
                     Nenhum produto encontrado
                     {(searchTerm || filterStatus !== 'active') ? ' para os filtros aplicados' : ''}.
-                     {/* Mensagem ajustada */}
+                    {/* Mensagem ajustada */}
                 </div>
             )}
             {!isLoading && !error && products.length > 0 && (
@@ -315,17 +288,15 @@ const ProductsPage = () => {
                     ))}
                 </div>
             )}
-
             {/* Modal de Criação */}
-             {/* Renderiza o modal apenas se isCreateModalOpen for true */}
+            {/* Renderiza o modal apenas se isCreateModalOpen for true */}
             {isCreateModalOpen && (
-                 <CreateProductModal
+                <CreateProductModal
                     isOpen={isCreateModalOpen}
                     onClose={handleCloseCreateModal}
                     onCreate={handleCreateProduct} // Passa a função correta
                 />
             )}
-
             {/* Modal de Edição (a ser implementado) */}
             {isEditModalOpen && currentProduct && (
                 <EditProductModal // Componente diferente ou o mesmo com lógica interna
@@ -335,15 +306,10 @@ const ProductsPage = () => {
                     productData={currentProduct}
                 />
             )}
-
         </div>
     );
 };
 
 export default ProductsPage;
-
-// --- END OF FILE ProductsPage.jsx ---
-
 // Adicione PropTypes se desejar maior robustez
-// ProductCard.propTypes = { ... };
 // ProductsPage.propTypes = { ... };

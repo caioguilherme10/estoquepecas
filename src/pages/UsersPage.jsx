@@ -3,8 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { UserPlus, Edit, ToggleLeft, ToggleRight, RotateCw } from 'lucide-react';
-import UserModal from './UserModal'; // *** 1. Importar o UserModal ***
-import PropTypes from 'prop-types'; // Boa prática adicionar PropTypes
+import UserModal from './UserModal'; 
+import PropTypes from 'prop-types';
 
 // Componente da Linha do Usuário (Opcional, mas organiza)
 const UserRow = ({ user, onToggleActive, onEdit, formatDateTime }) => {
@@ -43,26 +43,22 @@ UserRow.propTypes = {
 
 // Componente Principal da Página
 const UsersPage = () => {
-    const { user: loggedInUser } = useAuth(); // Renomeado para loggedInUser para evitar conflito
+    const { user: loggedInUser } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [successMessage, setSuccessMessage] = useState(''); // Estado para mensagens de sucesso
-
-    // *** 2. Estados para o Modal ***
+    const [successMessage, setSuccessMessage] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [currentUser, setCurrentUser] = useState(null); // null para criar, objeto user para editar
-
+    const [currentUser, setCurrentUser] = useState(null);
     // Controle de Acesso
     if (loggedInUser?.permissao !== 'admin') {
         console.warn("Acesso negado à página de usuários.");
         return <Navigate to="/dashboard" replace />;
     }
-
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         setError('');
-        setSuccessMessage(''); // Limpa msg de sucesso ao recarregar
+        setSuccessMessage('');
         try {
             const data = await window.api.getAllUsers();
             setUsers(data || []);
@@ -73,11 +69,9 @@ const UsersPage = () => {
             setLoading(false);
         }
     }, []);
-
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
-
     // Limpa mensagem de sucesso após alguns segundos
     useEffect(() => {
         if (successMessage) {
@@ -85,46 +79,41 @@ const UsersPage = () => {
             return () => clearTimeout(timer); // Limpa o timer se o componente desmontar
         }
     }, [successMessage]);
-
     const handleToggleActive = async (id) => {
-        setError(''); // Limpa erros anteriores
+        setError('');
         setSuccessMessage('');
-        // Não permitir desativar o próprio usuário logado? (Opcional)
-        // if (id === loggedInUser?.id_usuario) {
-        //     setError("Você não pode desativar seu próprio usuário.");
-        //     return;
-        // }
+        // Não permitir desativar o próprio usuário logado?
+        if (id === loggedInUser?.id_usuario) {
+            setError("Você não pode desativar seu próprio usuário.");
+            return;
+        }
         try {
             const result = await window.api.toggleUserActive(id);
             setSuccessMessage(result.message || 'Status do usuário alterado.');
-            fetchUsers(); // Recarrega a lista
+            fetchUsers();
         } catch (err) {
             console.error(`Erro ao ativar/desativar usuário ${id}:`, err);
             setError(`Erro ao alterar status: ${err.message}`);
         }
     };
-
-    // *** 3. Funções para controlar o Modal ***
+    // *** Funções para controlar o Modal ***
     const handleOpenCreateModal = () => {
-        setCurrentUser(null); // Modo de criação
-        setIsModalOpen(true);
-        setError(''); // Limpa erros ao abrir modal
-        setSuccessMessage('');
-    };
-
-    const handleOpenEditModal = (userToEdit) => {
-        setCurrentUser(userToEdit); // Modo de edição com dados do usuário
+        setCurrentUser(null);
         setIsModalOpen(true);
         setError('');
         setSuccessMessage('');
     };
-
+    const handleOpenEditModal = (userToEdit) => {
+        setCurrentUser(userToEdit);
+        setIsModalOpen(true);
+        setError('');
+        setSuccessMessage('');
+    };
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setCurrentUser(null); // Limpa usuário atual ao fechar
+        setCurrentUser(null);
     };
-
-    // *** 4. Função chamada pelo Modal ao salvar ***
+    // ***  Função chamada pelo Modal ao salvar ***
     const handleSaveUser = async (userData, userId) => {
         // A lógica de loading e error será tratada dentro do Modal,
         // mas podemos limpar erros/sucessos antigos aqui
@@ -145,12 +134,11 @@ const UsersPage = () => {
             return Promise.resolve(); // Indica sucesso para o Modal
         } catch (err) {
             console.error("Erro no handleSaveUser:", err);
-             // Re-lança o erro para o Modal exibir
+            // Re-lança o erro para o Modal exibir
             return Promise.reject(err);
         }
     };
-
-    // Função de formatação de data (mantida)
+    // Função de formatação de data
     const formatDateTime = (isoString) => {
         if (!isoString) return '-';
         try {
@@ -159,7 +147,6 @@ const UsersPage = () => {
             return 'Inválido';
         }
     };
-
     return (
         <div className="container mx-auto p-4 dark:text-gray-100">
             {/* Cabeçalho e Botões */}
@@ -182,11 +169,9 @@ const UsersPage = () => {
                     </button>
                 </div>
             </div>
-
             {/* Mensagens de Erro e Sucesso */}
             {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
             {successMessage && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">{successMessage}</div>}
-
             {/* Tabela de Usuários */}
             <div className="shadow overflow-hidden border-b border-gray-200 dark:border-gray-700 sm:rounded-lg">
                 <div className="overflow-x-auto">
@@ -223,8 +208,7 @@ const UsersPage = () => {
                     </table>
                 </div>
             </div>
-
-            {/* *** 5. Renderizar o Modal Condicionalmente *** */}
+            {/* *** Renderizar o Modal Condicionalmente *** */}
             <UserModal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}

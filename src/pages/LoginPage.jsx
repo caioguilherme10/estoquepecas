@@ -12,21 +12,17 @@ const LoginPage = () => {
     const { login } = useAuth(); // Pega a função login do contexto
     const navigate = useNavigate();
     const location = useLocation();
-
     // Pega a rota de origem ou vai para o dashboard
     const from = location.state?.from?.pathname || '/dashboard';
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
-
         if (!username || !password) {
             setError('Usuário e senha são obrigatórios.');
             setLoading(false);
             return;
         }
-
         try {
             await login(username, password);
             // Navega para a página de origem ou dashboard após o login
@@ -38,7 +34,6 @@ const LoginPage = () => {
             setLoading(false);
         }
     };
-
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
             <div className="p-8 bg-white dark:bg-gray-800 rounded-lg shadow-md w-full max-w-sm">
@@ -77,11 +72,9 @@ const LoginPage = () => {
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:text-gray-100"
                         />
                     </div>
-
                     {error && (
                         <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
                     )}
-
                     <div>
                         <button
                             type="submit"

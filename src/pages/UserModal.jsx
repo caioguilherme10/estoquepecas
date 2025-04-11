@@ -13,11 +13,9 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
         permissao: 'vendedor', // Padrão
         ativo: true,
     };
-
     const [formData, setFormData] = useState(initialFormData);
     const [formErrors, setFormErrors] = useState({});
     const [loading, setLoading] = useState(false);
-
     // Efeito para carregar dados de edição ou resetar o form
     useEffect(() => {
         if (isOpen) {
@@ -39,7 +37,6 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
             setLoading(false);
         }
     }, [isOpen, userData, isEditing]); // Dependências do efeito
-
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData(prev => ({
@@ -54,13 +51,11 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
              setFormErrors(prev => ({ ...prev, senha: null })); // Limpa erro geral de senha
         }
     };
-
     const validateForm = () => {
         const errors = {};
         if (!formData.nome_usuario.trim()) errors.nome_usuario = 'Nome de usuário é obrigatório.';
         if (!formData.nome_completo.trim()) errors.nome_completo = 'Nome completo é obrigatório.';
         if (!formData.permissao) errors.permissao = 'Permissão é obrigatória.';
-
         // Validação de senha apenas na criação ou se digitada na edição
         if (!isEditing || formData.senha) {
             if (!formData.senha) {
@@ -73,19 +68,15 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
         }
         return errors;
     };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         const errors = validateForm();
         setFormErrors(errors);
-
         if (Object.keys(errors).length > 0) {
             return; // Não envia se houver erros
         }
-
         setLoading(true);
         setFormErrors({}); // Limpa erros de submissão anteriores
-
         // Prepara os dados a serem enviados (remove confirmPassword)
         const dataToSend = {
             nome_usuario: formData.nome_usuario.trim(),
@@ -97,7 +88,6 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
         if (formData.senha) {
             dataToSend.senha = formData.senha;
         }
-
         try {
              // Chama a função onSave passada pelo pai, passando os dados e o ID (se for edição)
             await onSave(dataToSend, userData?.id_usuario);
@@ -109,17 +99,13 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
             setLoading(false);
         }
     };
-
     if (!isOpen) return null;
-
     // Estilos reutilizáveis (Tailwind)
     const labelStyles = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1";
     const inputStyles = "shadow-sm bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500";
     const errorStyles = "text-red-500 text-xs mt-1";
     const checkboxLabelCss = "flex items-center text-sm text-gray-700 dark:text-gray-300";
     const checkboxCss = "w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600";
-
-
     return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="relative w-full max-w-lg max-h-full">
@@ -142,7 +128,7 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
                     </div>
                     {/* Modal body */}
                     <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                         {/* Campo Nome Completo */}
+                        {/* Campo Nome Completo */}
                         <div>
                             <label htmlFor="nome_completo" className={labelStyles}>Nome Completo *</label>
                             <input
@@ -157,7 +143,6 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
                             />
                             {formErrors.nome_completo && <p className={errorStyles}>{formErrors.nome_completo}</p>}
                         </div>
-
                         {/* Campo Nome de Usuário (Login) */}
                         <div>
                             <label htmlFor="nome_usuario" className={labelStyles}>Usuário (Login) *</label>
@@ -176,8 +161,7 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
                             {formErrors.nome_usuario && <p className={errorStyles}>{formErrors.nome_usuario}</p>}
                              {isEditing && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Nome de usuário não pode ser alterado.</p>}
                         </div>
-
-                         {/* Campo Senha */}
+                        {/* Campo Senha */}
                         <div>
                             <label htmlFor="senha" className={labelStyles}>
                                 Senha {isEditing ? '(Deixe em branco para não alterar)' : '*'}
@@ -195,7 +179,6 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
                              {/* Mostra erro geral de senha ou confirmação */}
                             {formErrors.senha && <p className={errorStyles}>{formErrors.senha}</p>}
                         </div>
-
                         {/* Campo Confirmar Senha (Apenas se a senha estiver sendo digitada) */}
                          {(formData.senha || !isEditing) && ( // Mostra se criando ou se digitou senha na edição
                              <div>
@@ -211,9 +194,7 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
                                 />
                                 {/* Não precisa de erro específico aqui, o erro de confirmação está em 'formErrors.senha' */}
                             </div>
-                         )}
-
-
+                        )}
                         {/* Campo Permissão */}
                         <div>
                             <label htmlFor="permissao" className={labelStyles}>Permissão *</label>
@@ -231,7 +212,6 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
                             </select>
                             {formErrors.permissao && <p className={errorStyles}>{formErrors.permissao}</p>}
                         </div>
-
                         {/* Checkbox Ativo */}
                         <div className="flex items-center">
                             <input
@@ -246,13 +226,10 @@ const UserModal = ({ isOpen, onClose, onSave, userData }) => {
                                 Usuário Ativo
                             </label>
                         </div>
-
-                         {/* Erro Geral de Submissão */}
-                         {formErrors.submit && (
-                             <p className={`${errorStyles} text-center font-medium`}>{formErrors.submit}</p>
-                         )}
-
-
+                        {/* Erro Geral de Submissão */}
+                        {formErrors.submit && (
+                            <p className={`${errorStyles} text-center font-medium`}>{formErrors.submit}</p>
+                        )}
                         {/* Modal footer */}
                         <div className="flex items-center justify-end pt-4 border-t border-gray-200 rounded-b dark:border-gray-600 space-x-2">
                             <button

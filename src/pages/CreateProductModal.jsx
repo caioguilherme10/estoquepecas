@@ -1,5 +1,5 @@
 // src/pages/Products/CreateProductModal.jsx
-import React, { ChangeEvent, FormEvent, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import PropTypes from 'prop-types';
 
@@ -17,20 +17,16 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
         Localizacao: '',
         Ativo: true,
     };
-
     const [formData, setFormData] = useState(initialFormData);
     const [formErrors, setFormErrors] = useState({});
-
     useEffect(() => {
         if (isOpen) {
             setFormData(initialFormData);
             setFormErrors({});
         }
     }, [isOpen]);
-
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
-
         setFormData((prevData) => ({
             ...prevData,
             [name]: type === 'checkbox'
@@ -40,10 +36,8 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
                     : value,
         }));
     };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         const errors = {};
         /*if (!formData.CodigoFabricante) {
             errors.CodigoFabricante = 'Código do Fabricante é obrigatório.';
@@ -52,11 +46,9 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
             errors.NomeProduto = 'Nome do Produto é obrigatório.';
         }
         setFormErrors(errors);
-
         if (Object.keys(errors).length > 0) {
             return;
         }
-
         try {
             await onCreate(formData);
             onClose();
@@ -65,15 +57,12 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
             setFormErrors({ submit: err.message || 'Erro ao criar o produto.' });
         }
     };
-
     if (!isOpen) return null;
-
     const labelCssStyles = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1";
     const inputCssStyles = "shadow-sm bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500";
     const checkboxLabelCss = "flex items-center text-sm text-gray-700 dark:text-gray-300";
     const checkboxCss = "w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600";
     const errorCss = "text-red-500 text-sm mt-1";
-
     return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
             <div className="relative w-full max-w-2xl max-h-full">
@@ -135,14 +124,11 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
                                 <input type="text" name="Localizacao" placeholder="Prateleira A, Corredor 3" onChange={handleChange} value={formData.Localizacao} className={inputCssStyles} />
                             </div>
                         </div>
-
                         <div className="flex items-center mb-4">
                             <input id="Ativo" type="checkbox" name="Ativo" checked={formData.Ativo} onChange={handleChange} className={checkboxCss} />
                             <label htmlFor="Ativo" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">Manter produto ativo?</label>
                         </div>
-
                         {formErrors.submit && <p className={errorCss}>{formErrors.submit}</p>}
-
                         {/* Modal footer */}
                         <div className="flex items-center justify-end pt-5 border-t border-gray-200 rounded-b dark:border-gray-600">
                             <button onClick={onClose} type="button" className="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-blue-300 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 mx-5 hover:text-gray-900 focus:z-10 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-500 dark:hover:text-white dark:hover:bg-gray-600 dark:focus:ring-gray-600">Cancelar</button>
