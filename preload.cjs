@@ -3,6 +3,7 @@
 console.log('[Preload] Script starting...');
 const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
+const fs = require('fs'); // Precisamos do fs aqui também para algumas checagens
 const os = require('os'); // Mantenha para diagnóstico se precisar
 const Database = require('better-sqlite3');
 const bcrypt = require('bcrypt'); // Importa bcrypt
@@ -131,6 +132,25 @@ try {
     `);
     console.log('[Preload] Tabela "historico_vendas" verificada/criada.');
 
+    // *** NOVA TABELA: produto_fotos ***
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS produto_fotos (
+            id_foto INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_produto INTEGER NOT NULL,                  -- Chave estrangeira para produtos
+            -- Guarda o NOME ÚNICO do arquivo copiado para a pasta da app
+            nome_arquivo_foto TEXT NOT NULL UNIQUE,
+            descricao_foto TEXT NULL,                   -- Descrição opcional (alt text)
+            ordem INTEGER NOT NULL DEFAULT 0,           -- Para ordenar a exibição das fotos
+            data_cadastro DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+            FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) ON DELETE CASCADE -- <<< IMPORTANTE: Exclui fotos se o produto for excluído
+        );
+    `);
+    console.log('[Preload] Tabela "produto_fotos" verificada/criada.');
+
+    // Criar índice para buscar fotos por produto rapidamente
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_fotos_produto ON produto_fotos (id_produto);`);
+    console.log('[Preload] Índice "idx_fotos_produto" verificado/criado.');
+
     // Trigger para atualizar DataUltimaAtualizacao na tabela produtos
     db.exec(`
         CREATE TRIGGER IF NOT EXISTS update_product_timestamp
@@ -189,46 +209,52 @@ try {
         getProducts: (searchTerm = null, statusFilter = 'active') => { // Alterado: includeInactive -> statusFilter
             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
             console.log(`[Preload API] getProducts called with searchTerm: "${searchTerm}", statusFilter: "${statusFilter}"`); // Log do filtro
-           try {
-               let query = `
-                   SELECT id_produto, Marca, CodigoBarras, CodigoFabricante, NomeProduto, QuantidadeEstoque, Preco, Localizacao, EstoqueMinimo, Aplicacao, Ativo
-                   FROM produtos
-               `;
-               const params = [];
-               const conditions = [];
+            try {
+                // Modifica a query para incluir a foto principal
+                let query = `
+                    SELECT
+                        p.id_produto, p.Marca, p.CodigoFabricante, p.NomeProduto,
+                        p.QuantidadeEstoque, p.Preco, p.Localizacao, p.EstoqueMinimo,
+                        p.Aplicacao, p.Ativo,
+                        pf.nome_arquivo_foto AS foto_principal_filename -- << ADICIONADO: Nome do arquivo da foto com ordem 0
+                    FROM produtos p
+                    LEFT JOIN produto_fotos pf ON p.id_produto = pf.id_produto AND pf.ordem = 0 -- << ADICIONADO: JOIN para buscar foto principal (ordem 0)
+                `;
+                const params = [];
+                const conditions = [];
 
-               // *** LÓGICA DO FILTRO DE STATUS ***
-               if (statusFilter === 'active') {
-                   conditions.push("Ativo = TRUE"); // Ou Ativo = 1 se armazenar como inteiro
-               } else if (statusFilter === 'inactive') {
-                   conditions.push("Ativo = FALSE"); // Ou Ativo = 0
-               }
-               // Se statusFilter for 'all' ou qualquer outro valor, não adiciona filtro de Ativo
+                // *** LÓGICA DO FILTRO DE STATUS ***
+                if (statusFilter === 'active') {
+                    conditions.push("p.Ativo = TRUE"); // Ou Ativo = 1 se armazenar como inteiro
+                } else if (statusFilter === 'inactive') {
+                    conditions.push("p.Ativo = FALSE"); // Ou Ativo = 0
+                }
+                // Se statusFilter for 'all' ou qualquer outro valor, não adiciona filtro de Ativo
 
-               // *** LÓGICA DO FILTRO DE BUSCA (searchTerm) ***
-               if (searchTerm) {
-                   conditions.push(`(NomeProduto LIKE ? OR CodigoFabricante LIKE ? OR Marca LIKE ? OR Aplicacao LIKE ? OR CodigoBarras LIKE ?)`);
-                   const likeTerm = `%${searchTerm}%`;
-                   params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
-               }
+                // *** LÓGICA DO FILTRO DE BUSCA (searchTerm) ***
+                if (searchTerm) {
+                    conditions.push(`(p.NomeProduto LIKE ? OR p.CodigoFabricante LIKE ? OR p.Marca LIKE ? OR p.Aplicacao LIKE ? OR p.CodigoBarras LIKE ?)`);
+                    const likeTerm = `%${searchTerm}%`;
+                    params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
+                }
 
-               // Junta as condições com WHERE e AND, se houver alguma
-               if (conditions.length > 0) {
-                   query += ` WHERE ${conditions.join(' AND ')}`;
-               }
+                // Junta as condições com WHERE e AND, se houver alguma
+                if (conditions.length > 0) {
+                    query += ` WHERE ${conditions.join(' AND ')}`;
+                }
 
-               query += ' ORDER BY NomeProduto'; // Ordena sempre
+                query += ' ORDER BY p.NomeProduto'; // Ordena sempre
 
-               console.log(`[Preload API] getProducts executing query: ${query}`); // Log da query final
-               const stmt = db.prepare(query);
-               const products = stmt.all(params);
-               console.log(`[Preload API] getProducts returning ${products.length} products.`);
-               return Promise.resolve(products);
-           } catch (err) {
-               console.error("[Preload API] Error in getProducts query:", err);
-               return Promise.reject(err);
-           }
-       },
+                console.log(`[Preload API] getProducts executing query: ${query}`); // Log da query final
+                const stmt = db.prepare(query);
+                const products = stmt.all(params);
+                console.log(`[Preload API] getProducts returning ${products.length} products (com foto_principal).`);
+                return Promise.resolve(products);
+            } catch (err) {
+                console.error("[Preload API] Error in getProducts query:", err);
+                return Promise.reject(err);
+            }
+        },
 
         getProductById: (id) => {
              // Código da função getProductById... (sem alterações)
@@ -1096,6 +1122,159 @@ try {
                 console.error(`[Preload API] Error toggling user active status ID ${id}:`, err);
                 return Promise.reject(err);
             }
+        },
+
+        // --- NOVAS Funções para Fotos de Produto ---
+
+        // 1. Função para o Renderer chamar o diálogo de seleção de arquivos
+        selectImageFiles: async () => {
+            try {
+                // Chama o handler no processo principal
+                const filePaths = await ipcRenderer.invoke('select-image-files');
+                return filePaths; // Retorna o array de caminhos selecionados
+            } catch (error) {
+                console.error("[Preload API] Erro ao invocar select-image-files:", error);
+                throw error; // Re-lança para o frontend tratar
+            }
+        },
+
+        // 2. Função para adicionar UMA foto a um produto
+        addPhotoToProduct: async (productId, sourceImagePath) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            if (!productId || !sourceImagePath) return Promise.reject(new Error("ID do produto e caminho da imagem são obrigatórios."));
+            console.log(`[Preload API] addPhotoToProduct called for product ${productId}, source: ${sourceImagePath}`);
+
+            try {
+                // Chama o main process para copiar o arquivo e obter o nome único
+                const uniqueFileName = await ipcRenderer.invoke('copy-product-image', sourceImagePath, productId);
+
+                // Insere o registro no banco de dados
+                const stmt = db.prepare(`
+                    INSERT INTO produto_fotos (id_produto, nome_arquivo_foto, ordem)
+                    VALUES (?, ?, (SELECT IFNULL(MAX(ordem), -1) + 1 FROM produto_fotos WHERE id_produto = ?)) -- Insere na próxima ordem
+                `);
+                const info = stmt.run(productId, uniqueFileName, productId); // Passa productId 2x para subquery da ordem
+
+                console.log(`[Preload API] Foto adicionada ao DB com sucesso. ID Foto: ${info.lastInsertRowid}, Nome Arquivo: ${uniqueFileName}`);
+                return Promise.resolve({
+                    id_foto: info.lastInsertRowid,
+                    nome_arquivo_foto: uniqueFileName,
+                    message: 'Foto adicionada com sucesso!'
+                });
+
+            } catch (error) {
+                 console.error(`[Preload API] Erro ao adicionar foto para produto ${productId}:`, error);
+                 // Tentar limpar o arquivo copiado se a inserção no DB falhar? (Opcional, complexo)
+                 // await ipcRenderer.invoke('delete-product-image-file', uniqueFileName); // CUIDADO com a lógica aqui
+                 return Promise.reject(error); // Re-lança o erro vindo do main ou do DB
+            }
+        },
+
+        // 3. Função para buscar todas as fotos de um produto
+        getPhotosForProduct: async (productId) => {
+            if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+            if (!productId) return Promise.reject(new Error("ID do produto é obrigatório."));
+            console.log(`[Preload API] getPhotosForProduct called for product ID: ${productId}`);
+            try {
+                const stmt = db.prepare(`
+                    SELECT id_foto, id_produto, nome_arquivo_foto, descricao_foto, ordem
+                    FROM produto_fotos
+                    WHERE id_produto = ?
+                    ORDER BY ordem ASC, id_foto ASC -- Ordena pela ordem definida, depois pelo ID
+                `);
+                const photos = stmt.all(productId);
+                console.log(`[Preload API] Found ${photos.length} photos for product ID: ${productId}`);
+                return Promise.resolve(photos);
+            } catch (error) {
+                console.error(`[Preload API] Error fetching photos for product ID ${productId}:`, error);
+                return Promise.reject(error);
+            }
+        },
+
+        // 4. Função para deletar uma foto (registro do DB e arquivo físico)
+        deletePhoto: async (photoId) => {
+             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+             if (!photoId) return Promise.reject(new Error("ID da foto é obrigatório."));
+             console.log(`[Preload API] deletePhoto called for photo ID: ${photoId}`);
+
+             // Usar transação para garantir consistência entre DB e filesystem
+             const transaction = db.transaction(() => {
+                 // Pega o nome do arquivo ANTES de deletar do DB
+                 const stmtGetFile = db.prepare('SELECT nome_arquivo_foto FROM produto_fotos WHERE id_foto = ?');
+                 const photoRecord = stmtGetFile.get(photoId);
+
+                 if (!photoRecord) {
+                     throw new Error(`Foto com ID ${photoId} não encontrada no banco de dados.`);
+                 }
+                 const fileName = photoRecord.nome_arquivo_foto;
+
+                 // Deleta o registro do DB
+                 const stmtDeleteDb = db.prepare('DELETE FROM produto_fotos WHERE id_foto = ?');
+                 const dbInfo = stmtDeleteDb.run(photoId);
+
+                 if (dbInfo.changes === 0) {
+                      // Isso não deveria acontecer se get() funcionou, mas é uma segurança
+                     throw new Error(`Falha ao deletar registro da foto ID ${photoId} do banco de dados.`);
+                 }
+
+                 console.log(`[Preload Transaction] Registro da foto ID ${photoId} deletado do DB.`);
+                 return fileName; // Retorna o nome do arquivo para deletar fisicamente
+             });
+
+             try {
+                 // Executa a transação do DB
+                 const fileNameToDelete = transaction();
+
+                 // Se a transação do DB foi bem-sucedida, tenta deletar o arquivo físico
+                 if (fileNameToDelete) {
+                    console.log(`[Preload API] Chamando main process para deletar arquivo: ${fileNameToDelete}`);
+                    await ipcRenderer.invoke('delete-product-image-file', fileNameToDelete);
+                 }
+
+                 console.log(`[Preload API] Foto ID ${photoId} deletada com sucesso (DB e arquivo).`);
+                 return Promise.resolve({ message: 'Foto deletada com sucesso!' });
+
+             } catch (error) {
+                 console.error(`[Preload API] Erro ao deletar foto ID ${photoId}:`, error);
+                  // O rollback da transação já deve ter acontecido se o erro foi no DB.
+                 // Se o erro foi ao deletar o arquivo físico, o registro do DB já foi removido.
+                 // Pode ser necessário adicionar lógica de compensação aqui se a consistência for crítica.
+                 return Promise.reject(error);
+             }
+        },
+
+        // 5. Função para obter o caminho base das imagens (chama o main process)
+        /*getProductImageBasePath: async () => {
+             try {
+                const basePath = await ipcRenderer.invoke('get-product-image-base-path');
+                return basePath;
+            } catch (error) {
+                console.error("[Preload API] Erro ao obter caminho base das imagens:", error);
+                throw error;
+            }
+        },*/
+
+        // 6. (Opcional) Função para atualizar ordem ou descrição
+        updatePhotoInfo: async (photoId, data) => {
+             if (!db) return Promise.reject(new Error("Banco de dados não conectado."));
+             if (!photoId || !data) return Promise.reject(new Error("ID da foto e dados são obrigatórios."));
+
+             const fields = [];
+             const params = { id_foto: photoId };
+             if (data.descricao_foto !== undefined) { fields.push("descricao_foto = @descricao_foto"); params.descricao_foto = data.descricao_foto; }
+             if (data.ordem !== undefined) { fields.push("ordem = @ordem"); params.ordem = parseInt(data.ordem, 10) || 0; }
+
+             if (fields.length === 0) return Promise.resolve({ changes: 0, message: "Nenhum dado para atualizar." });
+
+             try {
+                const stmt = db.prepare(`UPDATE produto_fotos SET ${fields.join(', ')} WHERE id_foto = @id_foto`);
+                const info = stmt.run(params);
+                 if (info.changes === 0) throw new Error(`Foto com ID ${photoId} não encontrada ou nenhum dado alterado.`);
+                 return Promise.resolve({ changes: info.changes, message: "Informações da foto atualizadas." });
+             } catch (error) {
+                 console.error(`[Preload API] Erro ao atualizar info da foto ${photoId}:`, error);
+                 return Promise.reject(error);
+             }
         },
 
         // Função para fechar o DB ao sair

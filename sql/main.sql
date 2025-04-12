@@ -75,6 +75,19 @@ CREATE INDEX idx_produtos_codigobarras ON produtos (CodigoBarras);
 CREATE INDEX idx_produtos_codigofabricante ON produtos (CodigoFabricante);
 CREATE INDEX idx_produtos_nomeproduto ON produtos (NomeProduto);
 
+CREATE TABLE IF NOT EXISTS produto_fotos (
+    id_foto INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_produto INTEGER NOT NULL, -- Chave estrangeira para produtos
+    -- Guarda o NOME ÚNICO do arquivo copiado para a pasta da app
+    nome_arquivo_foto TEXT NOT NULL UNIQUE,
+    descricao_foto TEXT NULL, -- Descrição opcional (alt text)
+    ordem INTEGER NOT NULL DEFAULT 0, -- Para ordenar a exibição das fotos
+    data_cadastro DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    FOREIGN KEY (id_produto) REFERENCES produtos(id_produto) ON DELETE CASCADE -- <<< IMPORTANTE: Exclui fotos se o produto for excluído
+);
+
+CREATE INDEX IF NOT EXISTS idx_fotos_produto ON produto_fotos (id_produto);
+
 -- Trigger para atualizar estoque ao inserir compra
 CREATE TRIGGER atualizar_estoque_compra
 AFTER INSERT ON historico_compras

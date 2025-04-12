@@ -1,12 +1,12 @@
-// --- START OF FILE ProductsPage.jsx ---
+// --- START OF FILE ProductsPage.jsx (MODIFICADO) ---
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, PlusCircle, Package, Edit, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Search, PlusCircle, Package, Edit, ToggleLeft, ToggleRight, RotateCw } from 'lucide-react';
 import CreateProductModal from './CreateProductModal';
 import EditProductModal from './EditProductModal';
 import PropTypes from 'prop-types';
-// Componente ProductCard (com pequenas melhorias no botão Ativar/Desativar)
-const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada prop onEdit
+// Componente ProductCard (Atualizado para receber e exibir a imagem)
+const ProductCard = ({ product, onToggleActive, onEdit, imageBasePath }) => { // Adicionado imageBasePath
     // Função para formatar moeda (opcional)
     const formatCurrency = (value) => {
         if (typeof value !== 'number') return 'N/A';
@@ -31,15 +31,38 @@ const ProductCard = ({ product, onToggleActive, onEdit }) => { // Adicionada pro
         ? "bg-yellow-500 hover:bg-yellow-600 text-white" // Amarelo para Desativar
         : "bg-green-500 hover:bg-green-600 text-white"; // Verde para Ativar
     const statusButtonIcon = isActive ? <ToggleLeft size={14} className="mr-1" /> : <ToggleRight size={14} className="mr-1" />;
+    // Constrói o src da imagem se os dados estiverem disponíveis
+    /*const imageUrl = (imageBasePath && product.foto_principal_filename) 
+        ? `${imageBasePath}/${product.foto_principal_filename}` // Usa a barra '/' pois imageBasePath já deve ser URL 
+        : null; // null se não houver imagem ou caminho base*/
+    // Não precisa mais de imageBasePath
+    const imageUrl = product.foto_principal_filename
+                   ? `safe-file://${product.foto_principal_filename}` // <-- Usa o protocolo
+                   : null;
     return (
         <div className={`border border-gray-200 dark:border-gray-700 shadow rounded-lg bg-white dark:bg-gray-800 flex flex-col transition hover:shadow-md overflow-hidden ${!isActive ? 'opacity-60' : ''}`}>
-            {/* ... (Imagem Placeholder e Conteúdo do Card - código existente) ... */}
-            <div className="bg-gray-100 dark:bg-gray-700 h-32 flex items-center justify-center flex-shrink-0 relative">
-                <Package size={48} className="text-gray-400 dark:text-gray-500" />
+            {/* Área da Imagem (Condicional) */}
+            <div className="bg-gray-100 dark:bg-gray-700 h-32 w-full flex items-center justify-center flex-shrink-0 relative overflow-hidden"> {/* Adicionado overflow-hidden */}
+                {imageUrl ? (
+                    <img
+                        src={imageUrl}
+                        alt={`Foto principal de ${product.NomeProduto}`}
+                        className="h-full w-full object-cover" // Cobre a área
+                        loading="lazy" // Carregamento preguiçoso
+                        onError={(e) => {
+                            // Em caso de erro (imagem não encontrada, etc.), mostra o placeholder
+                            console.warn(`Erro ao carregar imagem: ${imageUrl}`);
+                            e.target.style.display = 'none'; // Esconde a tag img quebrada
+                            // Poderia adicionar um estado para forçar a renderização do ícone abaixo
+                        }}
+                    />
+                ) : (
+                    // Placeholder se não houver imagem
+                    <Package size={48} className="text-gray-400 dark:text-gray-500" />
+                )}
+                {/* Badge Inativo */}
                 {!isActive && (
-                    <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">
-                        Inativo
-                    </span>
+                    <span className="absolute top-2 right-2 bg-red-600 ...">Inativo</span>
                 )}
             </div>
             <div className="p-4 flex-grow flex flex-col justify-between">
@@ -93,6 +116,7 @@ ProductCard.propTypes = {
     product: PropTypes.object.isRequired,
     onToggleActive: PropTypes.func.isRequired, // Renomeado de onProductDesativar
     onEdit: PropTypes.func.isRequired,
+    imageBasePath: PropTypes.string, // Pode ser string ou null/undefined inicialmente
 };
 // Componente principal da página
 const ProductsPage = () => {
@@ -105,6 +129,24 @@ const ProductsPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Estado para modal de edição (se usar um diferente)
     const [currentProduct, setCurrentProduct] = useState(null); // Para edição
+    //const [imageBasePath, setImageBasePath] = useState(''); // <-- NOVO ESTADO para o caminho base
+    //const [loadingBasePath, setLoadingBasePath] = useState(true); // <-- NOVO ESTADO para loading do caminho
+    // Função para buscar o caminho base das imagens
+    /*const fetchImageBasePath = useCallback(async () => {
+        setLoadingBasePath(true);
+        console.log("[ProductsPage] Buscando caminho base das imagens...");
+        try {
+            const pathResult = await window.api.getProductImageBasePath();
+            setImageBasePath(pathResult || ''); // Armazena o caminho (ou string vazia se falhar)
+            console.log("[ProductsPage] Caminho base recebido:", pathResult);
+        } catch (err) {
+            console.error("Erro ao buscar caminho base das imagens:", err);
+            setError(prev => prev ? `${prev}; Falha ao carregar caminho das imagens.` : "Falha ao carregar caminho das imagens."); // Adiciona ao erro existente ou define novo
+            setImageBasePath('');
+        } finally {
+            setLoadingBasePath(false);
+        }
+    }, []);*/
     // Função para buscar produtos (agora depende de term e status)
     const fetchProducts = useCallback(async (term, status) => {
         setIsLoading(true);
@@ -132,6 +174,10 @@ const ProductsPage = () => {
             setIsLoading(false);
         }
     }, []); // useCallback ainda não depende de estado diretamente
+    // useEffect para buscar caminho base (APENAS UMA VEZ no mount)
+    /*useEffect(() => {
+        fetchImageBasePath();
+    }, [fetchImageBasePath]); // Dependência na função criada com useCallback*/
     // Efeito para buscar produtos (agora depende de searchTerm e filterStatus)
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
@@ -266,24 +312,34 @@ const ProductsPage = () => {
             {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
             {successMessage && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">{successMessage}</div>}
             {/* Grid de Produtos */}
+            {/* Adiciona verificação para loadingBasePath */}
+            {/* {(isLoading || loadingBasePath) && ( */}
             {isLoading && (
-                <div className="text-center py-10 text-gray-500 dark:text-gray-400">Carregando produtos...</div>
+                <div className="text-center py-10 text-gray-500 dark:text-gray-400">Carregando...</div>
             )}
+            {/* Mostra erros combinados */}
+            {/* {error && !(isLoading || loadingBasePath) && ( */}
+            {error && !isLoading && (
+                <div className="text-center py-10 text-red-600 ...">{error}</div>
+            )}
+            {/* Mensagem de nenhum produto (só mostra se não estiver carregando e não houver erro) */}
+            {/* {!isLoading && !loadingBasePath && !error && products.length === 0 && ( */}
             {!isLoading && !error && products.length === 0 && (
                 <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-                    Nenhum produto encontrado
-                    {(searchTerm || filterStatus !== 'active') ? ' para os filtros aplicados' : ''}.
-                    {/* Mensagem ajustada */}
+                    Nenhum produto encontrado {/* ... */}
                 </div>
             )}
+            {/* Renderiza o grid APENAS se não estiver carregando, não houver erro e tiver produtos */}
+            {/* {!isLoading && !loadingBasePath && !error && products.length > 0 && ( */}
             {!isLoading && !error && products.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {products.map((product) => (
                         <ProductCard
                             key={product.id_produto}
                             product={product}
-                            onToggleActive={handleToggleProductActive} // Passa a função correta
-                            onEdit={handleOpenEditModal} // Passa a função para abrir edição
+                            onToggleActive={handleToggleProductActive}
+                            onEdit={handleOpenEditModal}
+                            //imageBasePath={imageBasePath} // <-- Passa o caminho base para o card
                         />
                     ))}
                 </div>
