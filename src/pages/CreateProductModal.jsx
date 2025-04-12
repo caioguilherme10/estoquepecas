@@ -1,8 +1,8 @@
-// src/pages/Products/CreateProductModal.jsx (MODIFICADO)
+// src/pages/Products/CreateProductModal.jsx (MODIFICADO para Data URLs)
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, ImagePlus, Trash2, UploadCloud, AlertCircle } from 'lucide-react';
 import PropTypes from 'prop-types';
-import path from 'path'; // Precisamos do path para pegar o nome do arquivo
+//import path from 'path'; // Precisamos do path para pegar o nome do arquivo
 
 const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
     const initialFormData = {
@@ -26,6 +26,12 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
     const [selectedPhotoFiles, setSelectedPhotoFiles] = useState([]); // Guarda { path: string, previewUrl: string }
     const [photoError, setPhotoError] = useState('');
     const [photoUploadProgress, setPhotoUploadProgress] = useState(null); // Ex: { current: 1, total: 3 }
+    // Helper function para pegar o nome do arquivo (substitui path.basename)
+    const getFileName = (filePath) => {
+        if (!filePath) return '';
+        // Funciona para Windows (\) e Linux/Mac (/)
+        return filePath.substring(filePath.lastIndexOf('/') + 1).substring(filePath.lastIndexOf('\\') + 1);
+    };
     useEffect(() => {
         if (isOpen) {
             setFormData(initialFormData);
@@ -88,7 +94,7 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
             console.error("Erro ao selecionar fotos:", err);
             setPhotoError("Falha ao selecionar fotos.");
         }*/
-        try {
+        /*try {
             const filePaths = await window.api.selectImageFiles();
             if (filePaths && filePaths.length > 0) {
                 const newFiles = await Promise.all(filePaths.map(async (filePath) => {
@@ -116,12 +122,34 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
         } catch (err) {
             console.error("Erro ao selecionar ou processar fotos:", err);
             setPhotoError("Falha ao selecionar ou criar preview das fotos.");
+        }*/
+        try {
+            // API agora retorna { path, dataUrl }
+            const filesData = await window.api.selectImageFiles();
+            if (filesData && filesData.length > 0) {
+                setSelectedPhotoFiles(prevFiles => {
+                    // Adiciona apenas os novos, evitando duplicatas de path
+                    const newFiles = filesData.filter(f => f && !prevFiles.some(pf => pf.path === f.path));
+                    // Verifica se algum preview falhou
+                    newFiles.forEach(f => {
+                        if (!f.dataUrl) {
+                            //setPhotoError(prev => prev ? `${prev}; Preview falhou para ${path.basename(f.path)}` : `Preview falhou para ${path.basename(f.path)}`);
+                            // Usa a função helper getFileName
+                            setPhotoError(prev => prev ? `${prev}; Preview falhou para ${getFileName(f.path)}` : `Preview falhou para ${getFileName(f.path)}`);
+                        }
+                    });
+                    return [...prevFiles, ...newFiles];
+                });
+            }
+        } catch (err) {
+            console.error("Erro ao selecionar fotos:", err);
+            setPhotoError("Falha ao selecionar fotos.");
         }
     };
     /*const handleRemovePhoto = (pathToRemove) => {
         setSelectedPhotoPaths(prevPaths => prevPaths.filter(p => p !== pathToRemove));
     };*/
-    const handleRemovePhoto = (pathToRemove) => {
+    /*const handleRemovePhoto = (pathToRemove) => {
         setSelectedPhotoFiles(prevFiles => {
            const fileToRemove = prevFiles.find(f => f.path === pathToRemove);
            if (fileToRemove?.previewUrl) {
@@ -129,6 +157,10 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
            }
            return prevFiles.filter(f => f.path !== pathToRemove);
        });
+    };*/
+    const handleRemovePhoto = (pathToRemove) => {
+        // Apenas remove do estado, não precisa mais de revokeObjectURL
+        setSelectedPhotoFiles(prevFiles => prevFiles.filter(f => f.path !== pathToRemove));
     };
     // --- Handler de Submissão Principal ---
     const handleSubmit = async (e) => {
@@ -183,8 +215,11 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
                         // Passa o CAMINHO ORIGINAL para a API de adicionar foto
                         await window.api.addPhotoToProduct(newProductId, photoFile.path);
                     } catch (uploadErr) {
-                        console.error(`Erro ao adicionar foto ${photoFile.path}:`, uploadErr);
-                        setPhotoError(prev => prev ? `${prev}; Falha em ${path.basename(photoFile.path)}` : `Falha em ${path.basename(photoFile.path)}`);
+                        //console.error(`Erro ao adicionar foto ${photoFile.path}:`, uploadErr);
+                        //setPhotoError(prev => prev ? `${prev}; Falha em ${path.basename(photoFile.path)}` : `Falha em ${path.basename(photoFile.path)}`);
+                        // Usa a função helper getFileName
+                        setPhotoError(prev => prev ? `${prev}; Falha em ${getFileName(photoFile.path)}` : `Falha em ${getFileName(photoFile.path)}`);
+                        console.error(`Erro ao adicionar foto ${getFileName(photoFile.path)}:`, uploadErr); // Log com nome do arquivo
                     }
                 }
                 setPhotoUploadProgress(null);
@@ -326,7 +361,7 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
                                     <div className="grid grid-cols-3 ... gap-3">
                                         {selectedPhotoFiles.map((photoFile) => (
                                             <div key={photoFile.path} className="relative group ... aspect-square">
-                                                {/* *** USA A URL DE PREVIEW GERADA *** */}
+                                                {/* *** USA A URL DE PREVIEW GERADA *** 
                                                 {photoFile.previewUrl ? (
                                                     <img
                                                         src={photoFile.previewUrl}
@@ -339,17 +374,37 @@ const CreateProductModal = ({ isOpen, onClose, onCreate }) => {
                                                     <div className="h-full w-full flex items-center justify-center bg-gray-200 dark:bg-gray-600">
                                                         <AlertCircle size={24} className="text-red-500" title="Erro no preview"/>
                                                     </div>
+                                                )}*/}
+                                                {/* *** USA A DATA URL RECEBIDA *** */}
+                                                {photoFile.dataUrl ? (
+                                                    <img
+                                                        src={photoFile.dataUrl}
+                                                        //alt={`Preview ${path.basename(photoFile.path)}`}
+                                                        // Usa a função helper getFileName para o alt text
+                                                        alt={`Preview ${getFileName(photoFile.path)}`}
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                ) : (
+                                                    // Mostra se a leitura/conversão falhou no main process
+                                                    //<div className="h-full w-full flex items-center justify-center bg-gray-200 dark:bg-gray-600" title={`Erro ao carregar preview de ${path.basename(photoFile.path)}`}>
+                                                    // Usa a função helper getFileName para o title do erro
+                                                    <div className="..." title={`Erro ao carregar preview de ${getFileName(photoFile.path)}`}>
+                                                        <AlertCircle size={24} className="text-red-500"/>
+                                                    </div>
                                                 )}
-                                                {/* Botão de Remover */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRemovePhoto(photoFile.path)}
-                                                    className="absolute top-1 right-1 p-1 ..."
-                                                    title="Remover Seleção"
-                                                    disabled={loading}
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
+                                                {/* Overlay com Ações (aparece no hover) */}
+                                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center gap-2">
+                                                    {/* Botão de Excluir (visível no hover) */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemovePhoto(photoFile.path)}
+                                                        className="p-1.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
+                                                        title="Remover Seleção"
+                                                        disabled={loading}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>

@@ -120,7 +120,7 @@ app.whenReady().then(() => {
 });*/
 
 // Handler para o usuário selecionar arquivos de imagem
-ipcMain.handle('select-image-files', async () => {
+/*ipcMain.handle('select-image-files', async () => {
   console.log('[Main Process] Abrindo diálogo para selecionar imagens...');
   const result = await dialog.showOpenDialog({
     title: 'Selecionar Imagens do Produto',
@@ -137,6 +137,40 @@ ipcMain.handle('select-image-files', async () => {
     console.log('[Main Process] Imagens selecionadas:', result.filePaths);
     return result.filePaths; // Retorna array com os caminhos dos arquivos selecionados
   }
+});*/
+ipcMain.handle('select-image-files', async () => {
+  console.log('[Main Process] Abrindo diálogo para selecionar imagens...');
+  const result = await dialog.showOpenDialog({
+      title: 'Selecionar Imagens do Produto',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+          { name: 'Imagens', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] },
+      ],
+  });
+
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      console.log('[Main Process] Seleção de imagens cancelada ou vazia.');
+      return [];
+  }
+
+  console.log('[Main Process] Imagens selecionadas:', result.filePaths);
+
+  // *** LER ARQUIVOS E GERAR DATA URLS ***
+  const filesWithData = await Promise.all(result.filePaths.map(async (filePath) => {
+      try {
+          const buffer = await fs.promises.readFile(filePath); // Lê o arquivo como buffer
+          const mimeType = require('mime-types').lookup(filePath) || 'application/octet-stream'; // Determina o tipo MIME
+          const base64 = buffer.toString('base64');             // Converte para Base64
+          const dataUrl = `data:${mimeType};base64,${base64}`; // Monta a Data URL
+          console.log(`[Main Process] Gerada Data URL para ${path.basename(filePath)} (tamanho: ${dataUrl.length})`);
+          return { path: filePath, dataUrl: dataUrl };
+      } catch (error) {
+          console.error(`[Main Process] Erro ao ler/processar arquivo ${filePath}:`, error);
+          return { path: filePath, dataUrl: null }; // Retorna null se falhar
+      }
+  }));
+
+  return filesWithData; // Retorna array de { path, dataUrl }
 });
 
 // Handler para copiar a imagem e retornar o novo nome/caminho relativo

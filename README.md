@@ -165,7 +165,8 @@ src/
 ### Funcionalidades em Desenvolvimento
 
  - fazer a tela de configuração
- - createProductModal imagem alternativa a implementar
+ - criar testes
+ - aplicar segurança
 
 ---
 
