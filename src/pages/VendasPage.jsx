@@ -49,16 +49,24 @@ const VendasPage = ({ onSaveSuccess, isModal = false }) => { // Mantemos props p
             const selected = produtosDisponiveis.find(p => p.id_produto === parseInt(currentProductId, 10));
             setProdutoSelecionadoInfo(selected);
             // Sugere preço, mas apenas se o campo estiver vazio
-            if (selected && selected.Preco > 0 && !currentPrecoUnitario) {
-                setCurrentPrecoUnitario(selected.Preco.toString());
-            }
+            //if (selected && selected.Preco > 0 && !currentPrecoUnitario) {
+            //    setCurrentPrecoUnitario(selected.Preco.toString());
+            //}
+            // *** ATUALIZA O PREÇO UNITÁRIO SEMPRE QUE O PRODUTO MUDA ***
+            // Se um produto foi selecionado, usa o preço dele (ou '0' se não tiver preço cadastrado).
+            // Converte para string para o input.
+            setCurrentPrecoUnitario(selected?.Preco > 0 ? selected.Preco.toString() : ''); // Usa '' se o preço for 0 ou negativo, ou se não houver produto
+            // Limpa a quantidade ao trocar de produto (opcional, mas geralmente bom)
+            setCurrentQuantidade('');
         } else {
+            // Se nenhum produto está selecionado, limpa as informações e o preço
             setProdutoSelecionadoInfo(null);
-            // Se des-selecionar, não limpa o preço automaticamente,
-            // o usuário pode ter digitado um valor customizado.
-            // Poderia limpar se quisesse: setCurrentPrecoUnitario('');
+            setCurrentPrecoUnitario('');
+            setCurrentQuantidade(''); // Limpa quantidade também
         }
-    }, [currentProductId, produtosDisponiveis, currentPrecoUnitario]); // Dependência em currentPrecoUnitario para não sobrescrever
+    // Remove currentPrecoUnitario das dependências para permitir a sobrescrita
+    }, [currentProductId, produtosDisponiveis]); // << DEPENDÊNCIAS ATUALIZADAS
+    //}, [currentProductId, produtosDisponiveis, currentPrecoUnitario]); // Dependência em currentPrecoUnitario para não sobrescrever
     // Limpa mensagens após um tempo
     useEffect(() => {
         if (mensagem) {
@@ -225,7 +233,7 @@ const VendasPage = ({ onSaveSuccess, isModal = false }) => { // Mantemos props p
                     </div>
                     {/* Preço Unitário Input */}
                     <div className="md:col-span-3">
-                        <label htmlFor="currentPrecoUnitario" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preço Unit*</label>
+                        <label htmlFor="currentPrecoUnitario" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preço Unitário*</label>
                         <div className="relative">
                             <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400">R$</span>
                             <input
